@@ -16,48 +16,63 @@
 Test clean shutdown functionality of the master
 """
 
-import mock
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+from unittest import mock
 
 from twisted.cred import credentials
 from twisted.internet import defer
 from twisted.spread import pb
 from twisted.trial import unittest
 
+from buildbot.worker.protocols.base import Connection
 from buildbot.worker.protocols.manager.pb import PBManager
+
+if TYPE_CHECKING:
+    from twisted.internet.defer import Deferred
+
+    from buildbot.util.twisted import InlineCallbacksType
 
 
 class FakeMaster:
-    initLock = defer.DeferredLock()
+    def __init__(self) -> None:
+        self.lock = defer.DeferredLock()
 
-    def addService(self, svc):
+    def acquire_lock(self) -> defer.Deferred[defer.DeferredLock]:
+        return self.lock.acquire()
+
+    def release_lock(self) -> None:
+        self.lock.release()
+
+    def addService(self, svc: PBManager) -> None:
         pass
 
     @property
-    def master(self):
+    def master(self) -> FakeMaster:
         return self
 
 
 class TestPBManager(unittest.TestCase):
-
     @defer.inlineCallbacks
-    def setUp(self):
+    def setUp(self) -> InlineCallbacksType[None]:  # type: ignore[override]
         self.pbm = PBManager()
         yield self.pbm.setServiceParent(FakeMaster())
+
         self.pbm.startService()
-        self.connections = []
+        self.addCleanup(self.pbm.stopService)
 
-    def tearDown(self):
-        return self.pbm.stopService()
+        self.connections: list[str] = []
 
-    def perspectiveFactory(self, mind, username):
-        persp = mock.Mock()
+    def perspectiveFactory(self, mind: object, username: str) -> Deferred[Connection]:
+        persp = mock.Mock(spec=Connection)
         persp.is_my_persp = True
         persp.attached = lambda mind: defer.succeed(None)
         self.connections.append(username)
         return defer.succeed(persp)
 
     @defer.inlineCallbacks
-    def test_register_unregister(self):
+    def test_register_unregister(self) -> InlineCallbacksType[None]:
         portstr = "tcp:0:interface=127.0.0.1"
         reg = yield self.pbm.register(portstr, "boris", "pass", self.perspectiveFactory)
 
@@ -82,7 +97,7 @@ class TestPBManager(unittest.TestCase):
         yield reg.unregister()
 
     @defer.inlineCallbacks
-    def test_register_no_user(self):
+    def test_register_no_user(self) -> InlineCallbacksType[None]:
         portstr = "tcp:0:interface=127.0.0.1"
         reg = yield self.pbm.register(portstr, "boris", "pass", self.perspectiveFactory)
 
@@ -106,20 +121,19 @@ class TestPBManager(unittest.TestCase):
         yield reg.unregister()
 
     @defer.inlineCallbacks
-    def test_requestAvatarId_noinitLock(self):
+    def test_requestAvatarId_noinitLock(self) -> InlineCallbacksType[None]:
         portstr = "tcp:0:interface=127.0.0.1"
         reg = yield self.pbm.register(portstr, "boris", "pass", self.perspectiveFactory)
 
         disp = self.pbm.dispatchers[portstr]
 
         d = disp.requestAvatarId(credentials.UsernamePassword(b'boris', b'pass'))
-        self.assertTrue(d.called,
-            "requestAvatarId should have been called since the lock is free")
+        self.assertTrue(d.called, "requestAvatarId should have been called since the lock is free")
 
         yield reg.unregister()
 
     @defer.inlineCallbacks
-    def test_requestAvatarId_initLock(self):
+    def test_requestAvatarId_initLock(self) -> InlineCallbacksType[None]:
         portstr = "tcp:0:interface=127.0.0.1"
         reg = yield self.pbm.register(portstr, "boris", "pass", self.perspectiveFactory)
 
@@ -127,15 +141,15 @@ class TestPBManager(unittest.TestCase):
 
         try:
             # simulate a reconfig/restart in progress
-            yield self.pbm.master.initLock.acquire()
+            yield self.pbm.master.acquire_lock()
             # try to authenticate while the lock is locked
             d = disp.requestAvatarId(credentials.UsernamePassword(b'boris', b'pass'))
-            self.assertFalse(d.called,
-                "requestAvatarId should block until the lock is released")
+            self.assertFalse(d.called, "requestAvatarId should block until the lock is released")
         finally:
             # release the lock, it should allow for auth to proceed
-            yield self.pbm.master.initLock.release()
+            self.pbm.master.release_lock()
 
-        self.assertTrue(d.called,
-            "requestAvatarId should have been called after the lock was released")
+        self.assertTrue(
+            d.called, "requestAvatarId should have been called after the lock was released"
+        )
         yield reg.unregister()

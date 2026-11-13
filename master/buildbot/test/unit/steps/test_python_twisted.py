@@ -13,9 +13,15 @@
 #
 # Copyright Buildbot Team Members
 
+from __future__ import annotations
+
 import textwrap
+from typing import TYPE_CHECKING
 
 from twisted.trial import unittest
+
+if TYPE_CHECKING:
+    from twisted.internet import defer
 
 from buildbot.process.properties import Property
 from buildbot.process.results import FAILURE
@@ -27,7 +33,7 @@ from buildbot.test.reactor import TestReactorMixin
 from buildbot.test.steps import ExpectShell
 from buildbot.test.steps import TestBuildStepMixin
 
-failureLog = '''\
+failureLog = """\
 buildbot.test.unit.test_steps_python_twisted.Trial.testProperties ... [FAILURE]
 buildbot.test.unit.test_steps_python_twisted.Trial.test_run_env ... [FAILURE]
 buildbot.test.unit.test_steps_python_twisted.Trial.test_run_env_nodupe ... [FAILURE]/home/dustin/code/buildbot/t/buildbot/master/buildbot/test/fake/logfile.py:92: UserWarning: step uses removed LogFile method `getText`
@@ -88,266 +94,305 @@ buildbot.test.unit.test_steps_python_twisted.Trial.test_run_singular
 Ran 8 tests in 0.101s
 
 FAILED (failures=8)
-'''  # noqa pylint: disable=line-too-long
+"""
 
 
 class Trial(TestBuildStepMixin, TestReactorMixin, unittest.TestCase):
-
-    def setUp(self):
+    def setUp(self) -> defer.Deferred[None]:  # type: ignore[override]
         self.setup_test_reactor()
         return self.setup_test_build_step()
 
-    def tearDown(self):
-        return self.tear_down_test_build_step()
-
-    def test_run_env(self):
+    def test_run_env(self) -> defer.Deferred[None]:
         self.setup_step(
-            python_twisted.Trial(workdir='build',
-                                 tests='testname',
-                                 testpath=None,
-                                 env={'PYTHONPATH': 'somepath'}))
+            python_twisted.Trial(
+                workdir='build', tests='testname', testpath=None, env={'PYTHONPATH': 'somepath'}
+            )
+        )
         self.expect_commands(
-            ExpectShell(workdir='build',
-                        command=['trial', '--reporter=bwverbose', 'testname'],
-                        logfiles={'test.log': '_trial_temp/test.log'},
-                        env=dict(PYTHONPATH='somepath'))
+            ExpectShell(
+                workdir='build',
+                command=['trial', '--reporter=bwverbose', 'testname'],
+                logfiles={'test.log': '_trial_temp/test.log'},
+                env={"PYTHONPATH": 'somepath'},
+            )
             .stdout("Ran 0 tests\n")
             .exit(0)
         )
         self.expect_outcome(result=SUCCESS, state_string='no tests run')
         return self.run_step()
 
-    def test_run_env_supplement(self):
+    def test_run_env_supplement(self) -> defer.Deferred[None]:
         self.setup_step(
-            python_twisted.Trial(workdir='build',
-                                 tests='testname',
-                                 testpath='path1',
-                                 env={'PYTHONPATH': ['path2', 'path3']}))
+            python_twisted.Trial(
+                workdir='build',
+                tests='testname',
+                testpath='path1',
+                env={'PYTHONPATH': ['path2', 'path3']},
+            )
+        )
         self.expect_commands(
-            ExpectShell(workdir='build',
-                        command=['trial', '--reporter=bwverbose', 'testname'],
-                        logfiles={'test.log': '_trial_temp/test.log'},
-                        env=dict(PYTHONPATH=['path1', 'path2', 'path3']))
+            ExpectShell(
+                workdir='build',
+                command=['trial', '--reporter=bwverbose', 'testname'],
+                logfiles={'test.log': '_trial_temp/test.log'},
+                env={"PYTHONPATH": ['path1', 'path2', 'path3']},  # type: ignore[dict-item]
+            )
             .stdout("Ran 0 tests\n")
             .exit(0)
         )
         self.expect_outcome(result=SUCCESS, state_string='no tests run')
         return self.run_step()
 
-    def test_run_env_nodupe(self):
+    def test_run_env_nodupe(self) -> defer.Deferred[None]:
         self.setup_step(
-            python_twisted.Trial(workdir='build',
-                                 tests='testname',
-                                 testpath='path2',
-                                 env={'PYTHONPATH': ['path1', 'path2']}))
+            python_twisted.Trial(
+                workdir='build',
+                tests='testname',
+                testpath='path2',
+                env={'PYTHONPATH': ['path1', 'path2']},
+            )
+        )
         self.expect_commands(
-            ExpectShell(workdir='build',
-                        command=['trial', '--reporter=bwverbose', 'testname'],
-                        logfiles={'test.log': '_trial_temp/test.log'},
-                        env=dict(PYTHONPATH=['path1', 'path2']))
+            ExpectShell(
+                workdir='build',
+                command=['trial', '--reporter=bwverbose', 'testname'],
+                logfiles={'test.log': '_trial_temp/test.log'},
+                env={"PYTHONPATH": ['path1', 'path2']},  # type: ignore[dict-item]
+            )
             .stdout("Ran 0 tests\n")
             .exit(0)
         )
         self.expect_outcome(result=SUCCESS, state_string='no tests run')
         return self.run_step()
 
-    def test_run_singular(self):
-        self.setup_step(
-            python_twisted.Trial(workdir='build',
-                                 tests='testname',
-                                 testpath=None))
+    def test_run_singular(self) -> defer.Deferred[None]:
+        self.setup_step(python_twisted.Trial(workdir='build', tests='testname', testpath=None))
         self.expect_commands(
-            ExpectShell(workdir='build',
-                        command=['trial', '--reporter=bwverbose', 'testname'],
-                        logfiles={'test.log': '_trial_temp/test.log'})
+            ExpectShell(
+                workdir='build',
+                command=['trial', '--reporter=bwverbose', 'testname'],
+                logfiles={'test.log': '_trial_temp/test.log'},
+            )
             .stdout("Ran 1 tests\n")
             .exit(0)
         )
         self.expect_outcome(result=SUCCESS, state_string='1 test passed')
         return self.run_step()
 
-    def test_run_plural(self):
-        self.setup_step(
-            python_twisted.Trial(workdir='build',
-                                 tests='testname',
-                                 testpath=None))
+    def test_run_plural(self) -> defer.Deferred[None]:
+        self.setup_step(python_twisted.Trial(workdir='build', tests='testname', testpath=None))
         self.expect_commands(
-            ExpectShell(workdir='build',
-                        command=['trial', '--reporter=bwverbose', 'testname'],
-                        logfiles={'test.log': '_trial_temp/test.log'})
+            ExpectShell(
+                workdir='build',
+                command=['trial', '--reporter=bwverbose', 'testname'],
+                logfiles={'test.log': '_trial_temp/test.log'},
+            )
             .stdout("Ran 2 tests\n")
             .exit(0)
         )
         self.expect_outcome(result=SUCCESS, state_string='2 tests passed')
         return self.run_step()
 
-    def test_run_failure(self):
-        self.setup_step(
-            python_twisted.Trial(workdir='build',
-                                 tests='testname',
-                                 testpath=None))
+    def test_run_failure(self) -> defer.Deferred[None]:
+        self.setup_step(python_twisted.Trial(workdir='build', tests='testname', testpath=None))
         self.expect_commands(
-            ExpectShell(workdir='build',
-                        command=['trial', '--reporter=bwverbose', 'testname'],
-                        logfiles={'test.log': '_trial_temp/test.log'})
+            ExpectShell(
+                workdir='build',
+                command=['trial', '--reporter=bwverbose', 'testname'],
+                logfiles={'test.log': '_trial_temp/test.log'},
+            )
             .stdout(failureLog)
             .exit(1)
         )
-        self.expect_outcome(
-            result=FAILURE, state_string='tests 8 failures (failure)')
-        self.expect_log_file('problems', failureLog.split('\n\n', 1)[1][:-1] +
-                             '\nprogram finished with exit code 1')
-        self.expect_log_file('warnings', textwrap.dedent('''\
+        self.expect_outcome(result=FAILURE, state_string='tests 8 failures (failure)')
+        self.expect_log_file(
+            'problems',
+            failureLog.split('\n\n', 1)[1][:-1] + '\nprogram finished with exit code 1',
+        )
+        self.expect_log_file(
+            'warnings',
+            textwrap.dedent("""\
                 buildbot.test.unit.test_steps_python_twisted.Trial.test_run_env_nodupe ... [FAILURE]/home/dustin/code/buildbot/t/buildbot/master/buildbot/test/fake/logfile.py:92: UserWarning: step uses removed LogFile method `getText`
                 buildbot.test.unit.test_steps_python_twisted.Trial.test_run_env_supplement ... [FAILURE]/home/dustin/code/buildbot/t/buildbot/master/buildbot/test/fake/logfile.py:92: UserWarning: step uses removed LogFile method `getText`
                 buildbot.test.unit.test_steps_python_twisted.Trial.test_run_jobs ... [FAILURE]/home/dustin/code/buildbot/t/buildbot/master/buildbot/test/fake/logfile.py:92: UserWarning: step uses removed LogFile method `getText`
                 buildbot.test.unit.test_steps_python_twisted.Trial.test_run_jobsProperties ... [FAILURE]
-                '''))  # noqa pylint: disable=line-too-long
+                """),
+        )
         return self.run_step()
 
-    def test_renderable_properties(self):
-        self.setup_step(python_twisted.Trial(workdir='build',
-                                            tests=Property('test_list'),
-                                            testpath=None))
-        self.properties.setProperty('test_list', ['testname'], 'Test')
-
+    def test_renderable_properties(self) -> defer.Deferred[None]:
+        self.setup_step(
+            python_twisted.Trial(workdir='build', tests=Property('test_list'), testpath=None)
+        )
+        self.build.setProperty('test_list', ['testname'], 'Test')
         self.expect_commands(
-            ExpectShell(workdir='build',
-                        command=['trial', '--reporter=bwverbose', 'testname'],
-                        logfiles={'test.log': '_trial_temp/test.log'})
+            ExpectShell(
+                workdir='build',
+                command=['trial', '--reporter=bwverbose', 'testname'],
+                logfiles={'test.log': '_trial_temp/test.log'},
+            )
             .stdout("Ran 2 tests\n")
             .exit(0)
         )
         self.expect_outcome(result=SUCCESS, state_string='2 tests passed')
         return self.run_step()
 
-    def test_build_changed_files(self):
-        self.setup_step(python_twisted.Trial(workdir='build', testChanges=True, testpath=None),
-                        build_files=['my/test/file.py', 'my/test/file2.py'])
+    def test_build_changed_files(self) -> defer.Deferred[None]:
+        self.setup_build(build_files=['my/test/file.py', 'my/test/file2.py'])
+        self.setup_step(
+            python_twisted.Trial(workdir='build', testChanges=True, testpath=None),
+        )
 
         self.expect_commands(
-            ExpectShell(workdir='build',
-                        command=['trial', '--reporter=bwverbose', '--testmodule=my/test/file.py',
-                                 '--testmodule=my/test/file2.py'],
-                        logfiles={'test.log': '_trial_temp/test.log'})
+            ExpectShell(
+                workdir='build',
+                command=[
+                    'trial',
+                    '--reporter=bwverbose',
+                    '--testmodule=my/test/file.py',
+                    '--testmodule=my/test/file2.py',
+                ],
+                logfiles={'test.log': '_trial_temp/test.log'},
+            )
             .stdout("Ran 2 tests\n")
             .exit(0)
         )
         self.expect_outcome(result=SUCCESS, state_string='2 tests passed')
         return self.run_step()
 
-    def test_test_path_env_python_path(self):
-        self.setup_step(python_twisted.Trial(workdir='build', tests='testname',
-                                            testpath='custom/test/path',
-                                            env={'PYTHONPATH': '/existing/pypath'}))
+    def test_test_path_env_python_path(self) -> defer.Deferred[None]:
+        self.setup_step(
+            python_twisted.Trial(
+                workdir='build',
+                tests='testname',
+                testpath='custom/test/path',
+                env={'PYTHONPATH': '/existing/pypath'},
+            )
+        )
 
         self.expect_commands(
-            ExpectShell(workdir='build',
-                        command=['trial', '--reporter=bwverbose', 'testname'],
-                        logfiles={'test.log': '_trial_temp/test.log'},
-                        env={'PYTHONPATH': ['custom/test/path', '/existing/pypath']})
+            ExpectShell(
+                workdir='build',
+                command=['trial', '--reporter=bwverbose', 'testname'],
+                logfiles={'test.log': '_trial_temp/test.log'},
+                env={'PYTHONPATH': ['custom/test/path', '/existing/pypath']},  # type: ignore[dict-item]
+            )
             .stdout("Ran 2 tests\n")
             .exit(0)
         )
         self.expect_outcome(result=SUCCESS, state_string='2 tests passed')
         return self.run_step()
 
-    def test_custom_reactor(self):
-        self.setup_step(python_twisted.Trial(workdir='build', reactor='customreactor',
-                                            tests='testname', testpath=None))
+    def test_custom_reactor(self) -> defer.Deferred[None]:
+        self.setup_step(
+            python_twisted.Trial(
+                workdir='build', reactor='customreactor', tests='testname', testpath=None
+            )
+        )
 
         self.expect_commands(
-            ExpectShell(workdir='build',
-                        command=['trial', '--reporter=bwverbose', '--reactor=customreactor',
-                                 'testname'],
-                        logfiles={'test.log': '_trial_temp/test.log'})
+            ExpectShell(
+                workdir='build',
+                command=['trial', '--reporter=bwverbose', '--reactor=customreactor', 'testname'],
+                logfiles={'test.log': '_trial_temp/test.log'},
+            )
             .stdout("Ran 2 tests\n")
             .exit(0)
         )
         self.expect_outcome(result=SUCCESS, state_string='2 tests passed (custom)')
         return self.run_step()
 
-    def test_custom_python(self):
-        self.setup_step(python_twisted.Trial(workdir='build', tests='testname',
-                                            python='/bin/mypython', testpath=None))
+    def test_custom_python(self) -> defer.Deferred[None]:
+        self.setup_step(
+            python_twisted.Trial(
+                workdir='build', tests='testname', python='/bin/mypython', testpath=None
+            )
+        )
 
         self.expect_commands(
-            ExpectShell(workdir='build',
-                        command=['/bin/mypython', 'trial', '--reporter=bwverbose', 'testname'],
-                        logfiles={'test.log': '_trial_temp/test.log'})
+            ExpectShell(
+                workdir='build',
+                command=['/bin/mypython', 'trial', '--reporter=bwverbose', 'testname'],
+                logfiles={'test.log': '_trial_temp/test.log'},
+            )
             .stdout("Ran 2 tests\n")
             .exit(0)
         )
         self.expect_outcome(result=SUCCESS, state_string='2 tests passed')
         return self.run_step()
 
-    def test_randomly(self):
-        self.setup_step(python_twisted.Trial(workdir='build',
-                                            randomly=True,
-                                            tests='testname',
-                                            testpath=None))
+    def test_randomly(self) -> defer.Deferred[None]:
+        self.setup_step(
+            python_twisted.Trial(workdir='build', randomly=True, tests='testname', testpath=None)
+        )
 
         self.expect_commands(
-            ExpectShell(workdir='build',
-                        command=['trial', '--reporter=bwverbose', '--random=0', 'testname'],
-                        logfiles={'test.log': '_trial_temp/test.log'})
+            ExpectShell(
+                workdir='build',
+                command=['trial', '--reporter=bwverbose', '--random=0', 'testname'],
+                logfiles={'test.log': '_trial_temp/test.log'},
+            )
             .stdout("Ran 2 tests\n")
             .exit(0)
         )
         self.expect_outcome(result=SUCCESS, state_string='2 tests passed')
         return self.run_step()
 
-    def test_run_jobs(self):
+    def test_run_jobs(self) -> defer.Deferred[None]:
         """
         The C{jobs} kwarg should correspond to trial's -j option (
         included since Twisted 12.3.0), and make corresponding changes to
         logfiles.
         """
-        self.setup_step(python_twisted.Trial(workdir='build',
-                                            tests='testname',
-                                            testpath=None,
-                                            jobs=2))
+        self.setup_step(
+            python_twisted.Trial(workdir='build', tests='testname', testpath=None, jobs=2)
+        )
 
         self.expect_commands(
-            ExpectShell(workdir='build',
-                        command=['trial', '--reporter=bwverbose', '--jobs=2',
-                                 'testname'],
-                        logfiles={
-                            'test.0.log': '_trial_temp/0/test.log',
-                            'err.0.log': '_trial_temp/0/err.log',
-                            'out.0.log': '_trial_temp/0/out.log',
-                            'test.1.log': '_trial_temp/1/test.log',
-                            'err.1.log': '_trial_temp/1/err.log',
-                            'out.1.log': '_trial_temp/1/out.log',
-                        })
+            ExpectShell(
+                workdir='build',
+                command=['trial', '--reporter=bwverbose', '--jobs=2', 'testname'],
+                logfiles={
+                    'test.0.log': '_trial_temp/0/test.log',
+                    'err.0.log': '_trial_temp/0/err.log',
+                    'out.0.log': '_trial_temp/0/out.log',
+                    'test.1.log': '_trial_temp/1/test.log',
+                    'err.1.log': '_trial_temp/1/err.log',
+                    'out.1.log': '_trial_temp/1/out.log',
+                },
+            )
             .stdout("Ran 1 tests\n")
             .exit(0)
         )
         self.expect_outcome(result=SUCCESS, state_string='1 test passed')
         return self.run_step()
 
-    def test_run_jobsProperties(self):
+    def test_run_jobsProperties(self) -> defer.Deferred[None]:
         """
         C{jobs} should accept Properties
         """
-        self.setup_step(python_twisted.Trial(workdir='build',
-                                            tests='testname',
-                                            jobs=Property('jobs_count'),
-                                            testpath=None))
-        self.properties.setProperty('jobs_count', '2', 'Test')
-
+        self.setup_step(
+            python_twisted.Trial(
+                workdir='build',
+                tests='testname',
+                jobs=Property('jobs_count'),
+                testpath=None,
+            )
+        )
+        self.build.setProperty('jobs_count', '2', 'Test')
         self.expect_commands(
-            ExpectShell(workdir='build',
-                        command=['trial', '--reporter=bwverbose', '--jobs=2',
-                                 'testname'],
-                        logfiles={
-                            'test.0.log': '_trial_temp/0/test.log',
-                            'err.0.log': '_trial_temp/0/err.log',
-                            'out.0.log': '_trial_temp/0/out.log',
-                            'test.1.log': '_trial_temp/1/test.log',
-                            'err.1.log': '_trial_temp/1/err.log',
-                            'out.1.log': '_trial_temp/1/out.log',
-                        })
+            ExpectShell(
+                workdir='build',
+                command=['trial', '--reporter=bwverbose', '--jobs=2', 'testname'],
+                logfiles={
+                    'test.0.log': '_trial_temp/0/test.log',
+                    'err.0.log': '_trial_temp/0/err.log',
+                    'out.0.log': '_trial_temp/0/out.log',
+                    'test.1.log': '_trial_temp/1/test.log',
+                    'err.1.log': '_trial_temp/1/err.log',
+                    'out.1.log': '_trial_temp/1/out.log',
+                },
+            )
             .stdout("Ran 1 tests\n")
             .exit(0)
         )
@@ -356,21 +401,18 @@ class Trial(TestBuildStepMixin, TestReactorMixin, unittest.TestCase):
 
 
 class HLint(TestBuildStepMixin, TestReactorMixin, unittest.TestCase):
-
-    def setUp(self):
+    def setUp(self) -> defer.Deferred[None]:  # type: ignore[override]
         self.setup_test_reactor()
         return self.setup_test_build_step()
 
-    def tearDown(self):
-        return self.tear_down_test_build_step()
-
-    def test_run_ok(self):
-        self.setup_step(python_twisted.HLint(workdir='build'),
-                        build_files=['foo.xhtml'])
+    def test_run_ok(self) -> defer.Deferred[None]:
+        self.setup_build(build_files=['foo.xhtml'])
+        self.setup_step(python_twisted.HLint(workdir='build'))
         self.expect_commands(
-            ExpectShell(workdir='build',
-                        command=[
-                            'bin/lore', '-p', '--output', 'lint', 'foo.xhtml'],)
+            ExpectShell(
+                workdir='build',
+                command=['bin/lore', '-p', '--output', 'lint', 'foo.xhtml'],
+            )
             .stdout("dunno what hlint output looks like..\n")
             .exit(0)
         )
@@ -378,43 +420,44 @@ class HLint(TestBuildStepMixin, TestReactorMixin, unittest.TestCase):
         self.expect_outcome(result=SUCCESS, state_string='0 hlints')
         return self.run_step()
 
-    def test_custom_python(self):
-        self.setup_step(python_twisted.HLint(workdir='build', python='/bin/mypython'),
-                        build_files=['foo.xhtml'])
+    def test_custom_python(self) -> defer.Deferred[None]:
+        self.setup_build(build_files=['foo.xhtml'])
+        self.setup_step(python_twisted.HLint(workdir='build', python='/bin/mypython'))
         self.expect_commands(
-            ExpectShell(workdir='build',
-                        command=['/bin/mypython', 'bin/lore', '-p', '--output', 'lint',
-                                 'foo.xhtml'])
-            .exit(0)
+            ExpectShell(
+                workdir='build',
+                command=['/bin/mypython', 'bin/lore', '-p', '--output', 'lint', 'foo.xhtml'],
+            ).exit(0)
         )
         self.expect_log_file('files', 'foo.xhtml\n')
         self.expect_outcome(result=SUCCESS, state_string='0 hlints')
         return self.run_step()
 
-    def test_command_failure(self):
-        self.setup_step(python_twisted.HLint(workdir='build'),
-                        build_files=['foo.xhtml'])
+    def test_command_failure(self) -> defer.Deferred[None]:
+        self.setup_build(build_files=['foo.xhtml'])
+        self.setup_step(python_twisted.HLint(workdir='build'))
         self.expect_commands(
-            ExpectShell(workdir='build',
-                        command=['bin/lore', '-p', '--output', 'lint', 'foo.xhtml'],)
-            .exit(1)
+            ExpectShell(
+                workdir='build',
+                command=['bin/lore', '-p', '--output', 'lint', 'foo.xhtml'],
+            ).exit(1)
         )
         self.expect_log_file('files', 'foo.xhtml\n')
         self.expect_outcome(result=FAILURE, state_string='hlint (failure)')
         return self.run_step()
 
-    def test_no_build_files(self):
+    def test_no_build_files(self) -> defer.Deferred[None]:
         self.setup_step(python_twisted.HLint(workdir='build'))
         self.expect_outcome(result=SKIPPED, state_string='hlint (skipped)')
         return self.run_step()
 
-    def test_run_warnings(self):
-        self.setup_step(python_twisted.HLint(workdir='build'),
-                        build_files=['foo.xhtml'])
+    def test_run_warnings(self) -> defer.Deferred[None]:
+        self.setup_build(build_files=['foo.xhtml'])
+        self.setup_step(python_twisted.HLint(workdir='build'))
         self.expect_commands(
-            ExpectShell(workdir='build',
-                        command=[
-                            'bin/lore', '-p', '--output', 'lint', 'foo.xhtml'])
+            ExpectShell(
+                workdir='build', command=['bin/lore', '-p', '--output', 'lint', 'foo.xhtml']
+            )
             .stdout("colon: meaning warning\n")
             .exit(0)
         )
@@ -424,20 +467,17 @@ class HLint(TestBuildStepMixin, TestReactorMixin, unittest.TestCase):
 
 
 class RemovePYCs(TestBuildStepMixin, TestReactorMixin, unittest.TestCase):
-
-    def setUp(self):
+    def setUp(self) -> defer.Deferred[None]:  # type: ignore[override]
         self.setup_test_reactor()
         return self.setup_test_build_step()
 
-    def tearDown(self):
-        return self.tear_down_test_build_step()
-
-    def test_run_ok(self):
+    def test_run_ok(self) -> defer.Deferred[None]:
         self.setup_step(python_twisted.RemovePYCs())
         self.expect_commands(
-            ExpectShell(workdir='wkdir',
-                        command=['find', '.', '-name', '\'*.pyc\'', '-exec', 'rm', '{}', ';'])
-            .exit(0)
+            ExpectShell(
+                workdir='wkdir',
+                command=['find', '.', '-name', '\'*.pyc\'', '-exec', 'rm', '{}', ';'],
+            ).exit(0)
         )
         self.expect_outcome(result=SUCCESS, state_string='remove .pycs')
         return self.run_step()

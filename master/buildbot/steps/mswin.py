@@ -13,6 +13,10 @@
 #
 # Copyright Buildbot Team Members
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+from typing import Any
 
 from twisted.internet import defer
 from twisted.python import log
@@ -24,35 +28,31 @@ from buildbot.process.results import FAILURE
 from buildbot.process.results import SUCCESS
 from buildbot.process.results import WARNINGS
 
+if TYPE_CHECKING:
+    from buildbot.util.twisted import InlineCallbacksType
+
 
 class Robocopy(ShellMixin, BuildStep):
-
-    """ Robocopy build step.
+    """Robocopy build step.
 
     This is just a wrapper around the standard shell command that
     will handle arguments and return codes accordingly for Robocopy.
     """
-    renderables = [
-        'custom_opts',
-        'destination',
-        'exclude_dirs',
-        'exclude_files',
-        'files',
-        'source'
-    ]
+
+    renderables = ['custom_opts', 'destination', 'exclude_dirs', 'exclude_files', 'files', 'source']
 
     # Robocopy exit flags (they are combined to make up the exit code)
     # See: http://ss64.com/nt/robocopy-exit.html
-    return_flags = {
-        FAILURE: [8, 16],
-        WARNINGS: [2, 4],
-        SUCCESS: [0, 1]
-    }
+    return_flags = {FAILURE: [8, 16], WARNINGS: [2, 4], SUCCESS: [0, 1]}
 
-    def __init__(self, source, destination,
-                 exclude=None,
-                 exclude_files=None,
-                 **kwargs):
+    def __init__(
+        self,
+        source: str,
+        destination: str,
+        exclude: list[str] | None = None,
+        exclude_files: list[str] | None = None,
+        **kwargs: Any,
+    ) -> None:
         self.source = source
         self.destination = destination
 
@@ -72,7 +72,7 @@ class Robocopy(ShellMixin, BuildStep):
         super().__init__(**kwargs)
 
     @defer.inlineCallbacks
-    def run(self):
+    def run(self) -> InlineCallbacksType[int]:
         command = ['robocopy', self.source, self.destination]
         if self.files:
             command += self.files

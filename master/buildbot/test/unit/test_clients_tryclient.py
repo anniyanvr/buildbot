@@ -13,6 +13,7 @@
 #
 # Copyright Buildbot Team Members
 
+from __future__ import annotations
 
 import base64
 import json
@@ -25,13 +26,12 @@ from buildbot.util import bytes2unicode
 
 
 class createJobfile(unittest.TestCase):
-
-    def makeNetstring(self, *strings):
+    def makeNetstring(self, *strings: str) -> str:
         return ''.join([f'{len(s)}:{s},' for s in strings])
 
     # versions 1-4 are deprecated and not produced by the try client
 
-    def test_createJobfile_v5(self):
+    def test_createJobfile_v5(self) -> None:
         jobid = '123-456'
         branch = 'branch'
         baserev = 'baserev'
@@ -44,21 +44,37 @@ class createJobfile(unittest.TestCase):
         builderNames = ['runtests']
         properties = {'foo': 'bar'}
         job = tryclient.createJobfile(
-            jobid, branch, baserev, patch_level, patch_body, repository,
-            project, who, comment, builderNames, properties)
+            jobid,
+            branch,
+            baserev,
+            patch_level,
+            patch_body,
+            repository,
+            project,
+            who,
+            comment,
+            builderNames,
+            properties,
+        )
         jobstr = self.makeNetstring(
             '5',
             json.dumps({
-                'jobid': jobid, 'branch': branch, 'baserev': baserev,
+                'jobid': jobid,
+                'branch': branch,
+                'baserev': baserev,
                 'patch_level': patch_level,
-                'repository': repository, 'project': project, 'who': who,
-                'comment': comment, 'builderNames': builderNames,
+                'repository': repository,
+                'project': project,
+                'who': who,
+                'comment': comment,
+                'builderNames': builderNames,
                 'properties': properties,
                 'patch_body': bytes2unicode(patch_body),
-            }))
+            }),
+        )
         self.assertEqual(job, jobstr)
 
-    def test_createJobfile_v6(self):
+    def test_createJobfile_v6(self) -> None:
         jobid = '123-456'
         branch = 'branch'
         baserev = 'baserev'
@@ -71,62 +87,79 @@ class createJobfile(unittest.TestCase):
         builderNames = ['runtests']
         properties = {'foo': 'bar'}
         job = tryclient.createJobfile(
-            jobid, branch, baserev, patch_level, patch_body, repository,
-            project, who, comment, builderNames, properties)
+            jobid,
+            branch,
+            baserev,
+            patch_level,
+            patch_body,
+            repository,
+            project,
+            who,
+            comment,
+            builderNames,
+            properties,
+        )
         jobstr = self.makeNetstring(
             '6',
             json.dumps({
-                'jobid': jobid, 'branch': branch, 'baserev': baserev,
+                'jobid': jobid,
+                'branch': branch,
+                'baserev': baserev,
                 'patch_level': patch_level,
-                'repository': repository, 'project': project, 'who': who,
-                'comment': comment, 'builderNames': builderNames,
+                'repository': repository,
+                'project': project,
+                'who': who,
+                'comment': comment,
+                'builderNames': builderNames,
                 'properties': properties,
                 'patch_body_base64': bytes2unicode(base64.b64encode(patch_body)),
-            }))
+            }),
+        )
         self.assertEqual(job, jobstr)
 
-    def test_SourceStampExtractor_readPatch(self):
-        sse = tryclient.GitExtractor(None, None, None)
+    def test_SourceStampExtractor_readPatch(self) -> None:
+        sse = tryclient.GitExtractor(None, None, None)  # type: ignore[arg-type]
         for patchlevel, diff in enumerate((None, "", b"")):
             sse.readPatch(diff, patchlevel)
             self.assertEqual(sse.patch, (patchlevel, None))
         sse.readPatch(b"diff schmiff blah blah blah", 23)
         self.assertEqual(sse.patch, (23, b"diff schmiff blah blah blah"))
 
-    def test_GitExtractor_fixBranch(self):
-        sse = tryclient.GitExtractor(None, "origin/master", None)
+    def test_GitExtractor_fixBranch(self) -> None:
+        sse = tryclient.GitExtractor(None, "origin/master", None)  # type: ignore[arg-type]
         self.assertEqual(sse.branch, "origin/master")
         sse.fixBranch(b'origi\n')
         self.assertEqual(sse.branch, "origin/master")
         sse.fixBranch(b'origin\n')
         self.assertEqual(sse.branch, "master")
 
-    def test_GitExtractor_override_baserev(self):
-        sse = tryclient.GitExtractor(None, None, None)
+    def test_GitExtractor_override_baserev(self) -> None:
+        sse = tryclient.GitExtractor(None, None, None)  # type: ignore[arg-type]
         sse.override_baserev(b"23ae367063327b79234e081f396ecbc\n")
         self.assertEqual(sse.baserev, "23ae367063327b79234e081f396ecbc")
 
-    class RemoteTryPP_TestStream():
-        def __init__(self):
-            self.writes = []
+    class RemoteTryPP_TestStream:
+        def __init__(self) -> None:
+            self.writes: list[bytes] = []
             self.is_open = True
 
-        def write(self, data):
+        def write(self, data: bytes) -> None:
             assert self.is_open
             self.writes.append(data)
 
-        def closeStdin(self):
+        def closeStdin(self) -> None:
             assert self.is_open
             self.is_open = False
 
-    def test_RemoteTryPP_encoding(self):
+    def test_RemoteTryPP_encoding(self) -> None:
         rmt = tryclient.RemoteTryPP("job")
         self.assertTrue(isinstance(rmt.job, str))
-        rmt.transport = self.RemoteTryPP_TestStream()
+        test_transport = self.RemoteTryPP_TestStream()
+        rmt.transport = test_transport  # type: ignore[assignment]
         rmt.connectionMade()
-        self.assertFalse(rmt.transport.is_open)
-        self.assertEqual(len(rmt.transport.writes), 1)
-        self.assertFalse(isinstance(rmt.transport.writes[0], str))
+        self.assertFalse(test_transport.is_open)
+        self.assertEqual(len(test_transport.writes), 1)
+        self.assertFalse(isinstance(test_transport.writes[0], str))
         for streamname in "out", "err":
             sys_streamattr = "std" + streamname
             rmt_methodattr = streamname + "Received"

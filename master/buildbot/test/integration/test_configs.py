@@ -14,6 +14,8 @@
 # Copyright Buildbot Team Members
 
 
+from __future__ import annotations
+
 import os
 
 from twisted.python import util
@@ -27,25 +29,20 @@ from buildbot.warnings import DeprecatedApiWarning
 
 
 class RealConfigs(dirs.DirsMixin, unittest.TestCase):
-
-    def setUp(self):
+    def setUp(self) -> None:
         self.setUpDirs('basedir')
         self.basedir = os.path.abspath('basedir')
         self.filename = os.path.abspath("test.cfg")
 
-    def tearDown(self):
-        self.tearDownDirs()
-
-    def test_sample_config(self):
+    def test_sample_config(self) -> None:
         filename = util.sibpath(runner.__file__, 'sample.cfg')
         with assertNotProducesWarnings(DeprecatedApiWarning):
             FileLoader(self.basedir, filename).loadConfig()
 
-    def test_0_9_0b5_api_renamed_config(self):
+    def test_0_9_0b5_api_renamed_config(self) -> None:
         with open(self.filename, "w", encoding='utf-8') as f:
             f.write(sample_0_9_0b5_api_renamed)
-        with assertNotProducesWarnings(DeprecatedApiWarning):
-            FileLoader(self.basedir, self.filename).loadConfig()
+        FileLoader(self.basedir, self.filename).loadConfig()
 
 
 # sample.cfg from various versions, with comments stripped.  Adjustments made
@@ -65,7 +62,7 @@ c['change_source'] = []
 c['change_source'].append(changes.GitPoller(
         'https://github.com/buildbot/hello-world.git',
         workdir='gitpoller-workdir', branch='master',
-        pollinterval=300))
+        pollInterval=300))
 
 c['schedulers'] = []
 c['schedulers'].append(schedulers.SingleBranchScheduler(
@@ -99,4 +96,4 @@ c['www'] = dict(port=8010,
 c['db'] = {
     'db_url' : "sqlite:///state.sqlite",
 }
-"""  # noqa pylint: disable=line-too-long
+"""

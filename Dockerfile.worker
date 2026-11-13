@@ -1,0 +1,62 @@
+# buildbot/buildbot-worker
+
+# please follow docker best practices
+# https://docs.docker.com/engine/userguide/eng-image/dockerfile_best-practices/
+
+# Provides a base Debian image with latest buildbot worker installed
+
+ARG DEBIAN_VERSION="trixie"
+
+FROM docker.io/library/debian:${DEBIAN_VERSION} AS buildbot-worker-build
+
+RUN apt-get update \
+    && apt-get -y install -q \
+        git \
+        virtualenv \
+    && rm -rf /var/lib/apt/lists/*
+
+# the build context is the repository root, so that setuptools-scm can read the version from git
+COPY . /usr/src/buildbot
+
+RUN virtualenv --python=python3 /build_venv \
+    && /build_venv/bin/pip3 wheel --no-deps --wheel-dir /wheels /usr/src/buildbot/worker
+
+FROM docker.io/library/debian:${DEBIAN_VERSION} AS buildbot-worker
+LABEL org.opencontainers.image.authors="Buildbot maintainers"
+
+# This will make apt-get install without question
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Install security updates and required packages
+RUN apt-get update \
+    && apt-get -y upgrade \
+    && apt-get -y install -q \
+        build-essential \
+        git \
+        subversion \
+        python3-dev \
+        libffi-dev \
+        libssl-dev \
+        virtualenv \
+        # Test runs produce a great quantity of dead grandchild processes.  In a
+        # non-docker environment, these are automatically reaped by init (process 1),
+        # so we need to simulate that here.  See https://github.com/Yelp/dumb-init
+        dumb-init \
+        curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && virtualenv --python=python3 /buildbot_venv \
+    && /buildbot_venv/bin/pip3 install 'twisted[tls]' \
+    && mkdir /buildbot \
+    && useradd -ms /bin/bash buildbot
+
+COPY --from=buildbot-worker-build /wheels /wheels
+COPY worker/docker/buildbot.tac /buildbot/buildbot.tac
+
+RUN /buildbot_venv/bin/pip3 install /wheels/*.whl && \
+    rm -rf /wheels && \
+    chown -R buildbot /buildbot
+
+USER buildbot
+WORKDIR /buildbot
+
+CMD ["/usr/bin/dumb-init", "/buildbot_venv/bin/twistd", "--pidfile=", "-ny", "buildbot.tac"]

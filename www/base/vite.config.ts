@@ -1,0 +1,151 @@
+import {defineConfig, normalizePath, PluginOption, ViteDevServer} from 'vite';
+import react from '@vitejs/plugin-react';
+import {viteStaticCopy} from 'vite-plugin-static-copy';
+import checker from 'vite-plugin-checker';
+import {createRequire} from 'module';
+import path from 'path';
+import fs from 'fs';
+import {visualizer} from 'rollup-plugin-visualizer';
+
+const proxy = new URL('https://buildbot.buildbot.net');
+
+const proxyTargetHttp = proxy.href.replace(/\/*$/, ''); // trim trailing slashes
+const proxyTargetWs = proxy.protocol === 'https:' ? `wss://${proxy.host}` : `ws://${proxy.host}`;
+
+const outDir = 'buildbot_www/static';
+
+const outdatedBrowserDist = normalizePath(
+  path.join(
+    path.dirname(createRequire(import.meta.url).resolve('outdated-browser-rework/package.json')),
+    'dist',
+  ),
+);
+
+const buildPluginsPathsMap = () => {
+  const root = path.resolve(import.meta.dirname, '..');
+  const aliases: {[src: string]: [string, string]} = {};
+
+  const addPlugin = (pluginName: string, pluginOutputRoot: string) => {
+    const knownPaths = [
+      ['scripts.js', 'text/javascript'],
+      ['styles.css', 'text/css'],
+    ];
+
+    for (const [filename, mimeType] of knownPaths) {
+      const pluginOutputFile = path.join(pluginOutputRoot, filename);
+      if (fs.existsSync(pluginOutputFile)) {
+        aliases[`/plugins/${pluginName}/${filename}`] = [pluginOutputFile, mimeType];
+      }
+    }
+  };
+
+  addPlugin('grid_view', path.join(root, `grid_view/buildbot_grid_view/static/`));
+  addPlugin('console_view', path.join(root, `console_view/buildbot_console_view/static/`));
+  addPlugin('waterfall_view', path.join(root, `waterfall_view/buildbot_waterfall_view/static/`));
+  addPlugin('wsgi_dashboards', path.join(root, `wsgi_dashboards/buildbot_wsgi_dashboards/static/`));
+
+  return aliases;
+};
+
+function serveBuildbotPlugins(): PluginOption {
+  return {
+    apply: 'serve',
+    configureServer(server: ViteDevServer) {
+      const pathMap = buildPluginsPathsMap();
+
+      return () => {
+        server.middlewares.use(async (req, res, next) => {
+          if (req.originalUrl !== undefined && req.originalUrl in pathMap) {
+            const [filePath, mimeType] = pathMap[req.originalUrl];
+            res.setHeader('Content-Type', mimeType);
+            res.writeHead(200);
+            res.write(fs.readFileSync(filePath));
+            res.end();
+          }
+
+          next();
+        });
+      };
+    },
+    name: 'serve-buildbot-plugins',
+  };
+}
+
+export default defineConfig({
+  plugins: [
+    react(),
+    viteStaticCopy({
+      targets: [
+        {
+          src: `${outdatedBrowserDist}/outdated-browser-rework.min.js`,
+          dest: '',
+          rename: {stripBase: true, name: 'browser-warning.js'},
+        },
+        {
+          src: `${outdatedBrowserDist}/style.css`,
+          dest: '',
+          rename: {stripBase: true, name: 'browser-warning.css'},
+        },
+      ],
+    }),
+    checker({typescript: true, eslint: {lintCommand: 'eslint', useFlatConfig: true}}),
+    serveBuildbotPlugins(),
+    visualizer(),
+  ],
+  // this makes all path references into relative paths, thus Buildbot can be hosted at a custom
+  // path prefix, like my-domain.com/custom-buildbot-path/
+  base: './',
+  build: {
+    target: ['es2020'],
+    outDir: outDir,
+    emptyOutDir: true,
+  },
+  css: {
+    preprocessorOptions: {
+      scss: {
+        api: 'modern-compiler',
+        quietDeps: true,
+      },
+    },
+  },
+  test: {
+    environment: 'jsdom',
+    // required to fake nextTick: https://vitest.dev/guide/migration.html#timer-mocks-3925
+    pool: 'threads',
+    maxWorkers: 1,
+    isolate: false,
+    setupFiles: './vitest.setup.tsx',
+  },
+  server: {
+    proxy: {
+      '/auth': proxyTargetHttp,
+      '/config': proxyTargetHttp,
+      '/api/v2': {
+        target: proxyTargetHttp,
+        headers: {
+          Host: proxy.host,
+          Origin: proxyTargetHttp,
+        },
+        // note that changeOrigin does not work for POST requests
+      },
+      '/login': proxyTargetHttp,
+      '/ws': {
+        target: proxyTargetWs,
+        ws: true,
+        secure: false, // the proxy attempts to verify certificate using localhost hostname
+        headers: {
+          Host: proxy.host,
+          Origin: proxyTargetHttp,
+        },
+      },
+      '/avatar': proxyTargetHttp,
+      '/img': proxyTargetHttp,
+      '/browser-warning.js': proxyTargetHttp,
+      '/browser-warning.css': proxyTargetHttp,
+    },
+  },
+  resolve: {
+    dedupe: ['axios', 'mobx', 'mobx-react', 'moment', 'react', 'react-dom', 'react-router-dom'],
+    mainFields: ['browser', 'module', 'main'],
+  },
+});

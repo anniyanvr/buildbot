@@ -41,7 +41,7 @@ The worker-side Bot object has the following remote methods:
     called after the initial connection is established, with a new
     list, to add or remove builders.
 
-    This method returns a dictionary of :class:`WorkerForBuilder` objects - see below.
+    This method returns a list of builder names.
 
 :meth:`~buildbot_worker.pb.BotPb.remote_print`
     Adds a message to the worker logfile.
@@ -260,6 +260,10 @@ Runs a shell command on the worker.  This command takes the following arguments:
 
     Maximum overall time from the start before the command is killed.
 
+``max_lines``
+
+    Maximum overall produced lines by the command, then it is killed.
+
 ``logfiles``
 
     A dictionary specifying logfiles other than stdio.  Keys are the logfile
@@ -298,6 +302,15 @@ The ``shell`` command sends the following updates:
     The exit status of the command, where -- in keeping with UNIX tradition --
     0 indicates success and any nonzero value is considered a failure.  No
     further updates should be sent after an ``rc``.
+
+``failure_reason``
+
+    Value is a string and describes additional scenarios when a process failed.
+    The value of the ``failure_reason`` key can be one of the following:
+
+     - ``timeout`` if the command timed out due to time specified by the ``maxTime`` parameter being exceeded.
+     - ``timeout_without_output`` if the command timed out due to time specified by the ``timeout`` parameter being exceeded.
+     - ``max_lines_failure`` if the command is killed due to the number of lines specified by the ``max_lines`` parameter being exceeded.
 
 ``log``
 

@@ -1,10 +1,9 @@
 Master-Worker connection with MessagePack over WebSocket protocol
+=================================================================
 
 .. note::
 
     This is experimental protocol.
-
-=================================================================
 
 Messages between master and worker are sent using WebSocket protocol in both directions.
 Data to be sent conceptually is a dictionary and is encoded using MessagePack.
@@ -66,7 +65,8 @@ A response message must contain at least these keys: ``seq_number``, ``op``, ``r
 ``is_exception``
     This key-value pair is optional.
     If request succeeded this key-value pair is absent.
-    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the value of ``result``.
+    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the
+    value of ``result``.
 
 
 Messages from master to worker
@@ -108,7 +108,8 @@ Worker prints a message from master to its log.
 ``is_exception``
     This key-value pair is optional.
     If request succeeded this key-value pair is absent.
-    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the value of ``result``.
+    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the
+    value of ``result``.
 
 
 keep-alive
@@ -146,7 +147,8 @@ Request
 +++++++
 
 This message requests worker to collect and send the information about itself back to the master.
-Only ``op`` and ``seq_number`` values are sent, because worker does not need any additional arguments for this action.
+Only ``op`` and ``seq_number`` values are sent, because worker does not need any additional
+arguments for this action.
 
 ``op``
     Value is a string ``get_worker_info``.
@@ -170,7 +172,8 @@ Response
 ``is_exception``
     This key-value pair is optional.
     If request succeeded this key-value pair is absent.
-    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the value of ``result``.
+    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the
+    value of ``result``.
 
 Key-value pairs in ``result`` dictionary represent:
 
@@ -212,51 +215,47 @@ As a convention, there are files named 'admin' and 'host':
     Value is a string.
     It specifies the name of the host.
 
-.. _MsgPack_Request_set_builder_list:
-
-set_builder_list
-~~~~~~~~~~~~~~~~
-
-For each master’s (builder, builddir) pair worker creates a corresponding directory.
-Directories which exist on the worker and are no longer needed by master, maybe deleted.
+set_worker_settings
+~~~~~~~~~~~~~~~~~~~
 
 Request
 +++++++
 
-This message sets builders on which commands may be run.
+Master sends this message to set worker settings.
+The settings must be sent from master before first command.
 
 ``seq_number``
-    Described in section :ref:`MsgPack_Request_Message` structure.
+    Described in section on :ref:`MsgPack_Request_Message` structure.
 
 ``op``
-    Value is a string ``set_builder_list``.
+    Value is a string ``set_worker_settings``.
 
-``builders``
-    Value is a list of two-item lists.
-    It represents wanted builders names.
-    Each tuple contains a builder name and its directory.
-    Builds will be run in a directory, whose path is a concatenation of worker base directory (which comes from Worker's configuration file) and the directory received from the master.
-    If the directory received from the master is an absolute path, it is used instead for running the builds.
+``args``
+    Value is a dictionary.
+    It represents the settings needed for worker to format command output and buffer messages.
+    The following settings are mandatory:
 
-    This directory is called builder directory in the rest of documentation.
+    * "buffer_size" - the maximum size of buffer in bytes to fill before sending an update message.
+
+    * "buffer_timeout" - the maximum time in seconds that data can wait in buffer before update
+      message is sent.
+
+    * "newline_re" - the pattern in output string, which will be replaced with newline symbol.
+
+    * "max_line_length" - the maximum size of command output line in bytes.
 
 Response
 ++++++++
 
 ``seq_number``
-    Described in section :ref:`MsgPack_Response_Message` structure.
+    Described in section  on :ref:`MsgPack_Response_Message` structure.
 
 ``op``
     Value is a string ``response``.
 
 ``result``
-    Value is a list which represents names of builders.
+    Value is ``None`` if success.
     Otherwise – message of exception.
-
-``is_exception``
-    This key-value pair is optional.
-    If request succeeded this key-value pair is absent.
-    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the value of ``result``.
 
 start_command
 ~~~~~~~~~~~~~
@@ -264,26 +263,24 @@ start_command
 Request
 +++++++
 
-This message requests worker to start a specific command.
-Master does not have to wait for completion of previous commands before starting a new one, so many different commands may be running in worker simultaneously.
+This message requests worker to start a specific command. Master does not have to wait for
+completion of previous commands before starting a new one, so many different commands may be
+running in worker simultaneously.
 
 Each start command request message has a unique ``command_id`` value.
 
-Worker may be sending request ``update`` messages to master which update master about status of started command.
-When worker sends a request ``update`` message about command, the message takes a ``command_id`` value from corresponding start command request message.
-Accordingly master can match update messages to the commands they correspond to.
-When command execution in worker is completed, worker sends a request ``complete`` message to master with the ``command_id`` value of the completed command.
-It allows master to track which command exactly was completed.
+Worker may be sending request ``update`` messages to master which update master about status of
+started command. When worker sends a request ``update`` message about command, the message takes a
+``command_id`` value from corresponding start command request message. Accordingly master can match
+update messages to the commands they correspond to. When command execution in worker is completed,
+worker sends a request ``complete`` message to master with the ``command_id`` value of the
+completed command. It allows master to track which command exactly was completed.
 
 ``op``
     Value is a string ``start_command``.
 
 ``seq_number``
     Described in section :ref:`MsgPack_Request_Message` structure.
-
-``builder_name``
-    Value is a string.
-    It represents the builder, which should start a command.
 
 ``command_id``
     Value is a string value that is unique per worker connection.
@@ -315,7 +312,8 @@ Response
 ``is_exception``
     This key-value pair is optional.
     If request succeeded this key-value pair is absent.
-    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the value of ``result``.
+    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the
+    value of ``result``.
 
 
 interrupt_command
@@ -331,10 +329,6 @@ This message requests worker to halt the specified command.
 
 ``op``
     Value is a string ``interrupt_command``.
-
-``builder_name``
-    Value is a string.
-    It represents a name of a builder which should interrupt its command.
 
 ``command_id``
     Value is a string which identifies the command to interrupt.
@@ -362,7 +356,8 @@ Update messages are explained in section :ref:`MsgPack_Update_Message`.
 ``is_exception``
     This key-value pair is optional.
     If request succeeded this key-value pair is absent.
-    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the value of ``result``.
+    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the
+    value of ``result``.
 
 shutdown
 ~~~~~~~~
@@ -397,7 +392,8 @@ Worker returns ``result``: ``None`` without waiting for completion of shutdown.
 ``is_exception``
     This key-value pair is optional.
     If request succeeded this key-value pair is absent.
-    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the value of ``result``.
+    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the
+    value of ``result``.
 
 Messages from worker to master
 ------------------------------
@@ -407,8 +403,8 @@ Messages from worker to master
 update
 ~~~~~~
 
-From the start of a command till its completion, worker may be updating master about the processes of commands it requested to start.
-These updates are sent in an ``update`` messages.
+From the start of a command till its completion, worker may be updating master about the processes
+of commands it requested to start. These updates are sent in an ``update`` messages.
 
 Request
 +++++++
@@ -420,9 +416,10 @@ Request
     Value is a string ``update``.
 
 ``args``
-    Value is a list of lists.
-    Inner list contains a dictionary and an integer.
-    Keys and values of the dictionary are further explained in section :ref:`MsgPack_Keys_And_Values_Message`.
+    Value is a list of two-element lists.
+    These two elements in sub-lists represent name-value pairs: first element is the name of
+    update and second is its value.
+    The names and values are further explained in section :ref:`MsgPack_Keys_And_Values_Message`.
 
 ``command_id``
     Value is a string which identifies command the update refers to.
@@ -443,7 +440,8 @@ Response
 ``is_exception``
     This key-value pair is optional.
     If request succeeded this key-value pair is absent.
-    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the value of ``result``.
+    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the
+    value of ``result``.
 
 update_upload_file_write
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -476,7 +474,8 @@ Response
 ``is_exception``
     This key-value pair is optional.
     If request succeeded this key-value pair is absent.
-    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the value of ``result``.
+    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the
+    value of ``result``.
 
 update_upload_file_close
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -508,7 +507,8 @@ Response
 ``is_exception``
     This key-value pair is optional.
     If request succeeded this key-value pair is absent.
-    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the value of ``result``.
+    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the
+    value of ``result``.
 
 update_upload_file_utime
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -521,11 +521,13 @@ Request
 
 ``access_time``
     Value is a floating point number.
-    It is a number of seconds that passed from the start of the Unix epoch (January 1, 1970, 00:00:00 (UTC)) and last access of path.
+    It is a number of seconds that passed from the start of the Unix epoch
+    (January 1, 1970, 00:00:00 (UTC)) and last access of path.
 
 ``modified_time``
     Value is a floating point number.
-    It is a number of seconds that passed from the start of the Unix epoch (January 1, 1970, 00:00:00 (UTC)) and last modification of path.
+    It is a number of seconds that passed from the start of the Unix epoch
+    (January 1, 1970, 00:00:00 (UTC)) and last modification of path.
 
 
 ``command_id``
@@ -547,7 +549,8 @@ Response
 ``is_exception``
     This key-value pair is optional.
     If request succeeded this key-value pair is absent.
-    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the value of ``result``.
+    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the
+    value of ``result``.
 
 update_read_file
 ~~~~~~~~~~~~~~~~
@@ -580,7 +583,8 @@ Response
 ``is_exception``
     This key-value pair is optional.
     If request succeeded this key-value pair is absent.
-    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the value of ``result``.
+    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the
+    value of ``result``.
 
 update_read_file_close
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -612,7 +616,8 @@ Response
 ``is_exception``
     This key-value pair is optional.
     If request succeeded this key-value pair is absent.
-    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the value of ``result``.
+    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the
+    value of ``result``.
 
 update_upload_directory_write
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -645,7 +650,8 @@ Response
 ``is_exception``
     This key-value pair is optional.
     If request succeeded this key-value pair is absent.
-    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the value of ``result``.
+    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the
+    value of ``result``.
 
 update_upload_directory_unpack
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -677,7 +683,8 @@ Response
 ``is_exception``
     This key-value pair is optional.
     If request succeeded this key-value pair is absent.
-    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the value of ``result``.
+    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the
+    value of ``result``.
 
 complete
 ~~~~~~~~
@@ -716,7 +723,8 @@ Response
 ``is_exception``
     This key-value pair is optional.
     If request succeeded this key-value pair is absent.
-    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the value of ``result``.
+    Otherwise, its value is a boolean ``True`` and the message of exception is specified in the
+    value of ``result``.
 
 .. _MsgPack_Request_Types_Message:
 
@@ -728,10 +736,11 @@ Request causes worker to start performing an action.
 There are multiple types of the request each supporting a particular type of worker action.
 The basic structure of request is the same as explained in section :ref:`MsgPack_Request_Message`.
 
-Values of ``command_name`` and ``args`` keys depend on the specific command within the request message dictionary.
-``command_name`` is a string which defines command type.
-``args`` is a dictionary which defines the arguments and other variables worker needs to perform the command successfully.
-Worker starts a program specified in the key ``command_name`` and sends updates to the master about ongoing command.
+Values of ``command_name`` and ``args`` keys depend on the specific command within the request
+message dictionary. ``command_name`` is a string which defines command type. ``args`` is a
+dictionary which defines the arguments and other variables worker needs to perform the command
+successfully. Worker starts a program specified in the key ``command_name`` and sends updates to
+the master about ongoing command.
 
 Command names and their arguments dictionary key-value pairs are explained below.
 
@@ -742,37 +751,45 @@ Runs a ``shell`` command on the worker.
 
 ``workdir``
     Value is a string.
-    This value is joined with the builder directory string (see :ref:`MsgPack_Request_set_builder_list`) to form the path string.
-    If ``workdir`` is an absolute path, it overrides the builder directory.
+    ``workdir`` is an absolute path and overrides the builder directory.
     The resulting path represents the worker directory to run the command in.
 
 ``env``
     Value is a dictionary and is optional.
-    It contains key-value pairs that specify environment variables for the environment in which a new command is started.
+    It contains key-value pairs that specify environment variables for the environment in which a
+    new command is started.
 
-    If the value is of type list, its elements are concatenated to a single string using a platform specific path separator between the elements.
+    If the value is of type list, its elements are concatenated to a single string using a platform
+    specific path separator between the elements.
 
-    If this dictionary contains "PYTHONPATH" key, path separator and "$PYTHONPATH" is appended to that value.
+    If this dictionary contains "PYTHONPATH" key, path separator and "$PYTHONPATH" is appended to
+    that value.
 
     Resulting environment dictionary sent to the command is created following these rules:
 
-    1) If ``env`` has value for specific key and it is ``None``, resulting dictionary does not have this key.
+    1) If ``env`` has value for specific key and it is ``None``, resulting dictionary does not have
+    this key.
 
-    2) If ``env`` has value for specific key and it is not ``None``, resulting dictionary contains this value with substitutions applied.
+    2) If ``env`` has value for specific key and it is not ``None``, resulting dictionary contains
+    this value with substitutions applied.
 
-    Any matches of a pattern ``${name}`` in this value, where name is any number of alphanumeric characters, are substituted with the value of the same key from worker environment.
+    Any matches of a pattern ``${name}`` in this value, where name is any number of alphanumeric
+    characters, are substituted with the value of the same key from worker environment.
 
-    3) If a specific key from worker environment is not present in ``env``, resulting dictionary contains that key-value pair from worker environment.
+    3) If a specific key from worker environment is not present in ``env``, resulting dictionary
+    contains that key-value pair from worker environment.
 
 ``want_stdout``
     Value is a bool and is optional.
     If value is not specified, the default is ``True``.
-    If value is ``True``, worker sends ``update`` log messages to master from the process ``stdout`` output.
+    If value is ``True``, worker sends ``update`` log messages to master from the process
+    ``stdout`` output.
 
 ``want_stderr``
     Value is a bool and is optional.
     If value is not specified, the default is True.
-    If value is ``True``, worker sends ``update`` log messages to the master from the process ``stderr`` output.
+    If value is ``True``, worker sends ``update`` log messages to the master from the process
+    ``stderr`` output.
 
 ``logfiles``
     Value is a dictionary and is optional.
@@ -782,17 +799,19 @@ Runs a ``shell`` command on the worker.
 
     Keys are the logfile names.
 
-    Worker reads this logfile and sends the data with the ``update`` message, where logfile name as a key identifies data of different logfiles.
+    Worker reads this logfile and sends the data with the ``update`` message, where logfile name as
+    a key identifies data of different logfiles.
 
     Value is a dictionary. It contains the following keys:
 
     ``filename``
-        Value is a string. It represents the filename of the logfile, relative to worker directory where the command is run.
+        Value is a string. It represents the filename of the logfile, relative to worker directory
+        where the command is run.
 
     ``follow``
         Value is a boolean.
-        If ``True`` - only follow the file from its current end-of-file, rather than starting from the beginning.
-        The default is ``False``.
+        If ``True`` - only follow the file from its current end-of-file, rather than starting from
+        the beginning. The default is ``False``.
 
 ``timeout``
     Value is an integer and is optional.
@@ -801,18 +820,28 @@ Runs a ``shell`` command on the worker.
 
 ``maxTime``
     Value is an integer and is optional.
+    If value is not specified, the default is ``None``. It represents, how many seconds a worker
+    should wait before killing a process. Even if command is still running and giving the output,
+    ``maxTime`` variable sets the maximum time the command is allowed to be performing. If
+    ``maxTime`` is set to ``None``, command runs for as long as it needs unless ``timeout``
+    specifies otherwise.
+
+``max_lines``
+    Value is an integer and is optional.
     If value is not specified, the default is ``None``.
-    It represents, how many seconds a worker should wait before killing a process.
-    Even if command is still running and giving the output, ``maxTime`` variable sets the maximum time the command is allowed to be performing.
-    If ``maxTime`` is set to ``None``, command runs for as long as it needs unless ``timeout`` specifies otherwise.
+    It represents, how many produced lines a worker should wait before killing a process.
+    If ``max_lines`` is set to ``None``, command runs for as long as it needs unless ``timeout``
+    or ``maxTime`` specifies otherwise.
 
 ``sigtermTime``
     Value is an integer and is optional.
     If value is not specified, the default is ``None``.
     It specifies how to abort the process.
     If ``sigtermTime`` is not ``None`` when aborting the process, worker sends a signal SIGTERM.
-    After sending this signal, worker waits for ``sigtermTime`` seconds of time and if the process is still alive, sends the signal SIGKILL.
-    If ``sigtermTime`` is ``None``, worker does not wait and sends signal SIGKILL to the process immediately.
+    After sending this signal, worker waits for ``sigtermTime`` seconds of time and if the process
+    is still alive, sends the signal SIGKILL.
+    If ``sigtermTime`` is ``None``, worker does not wait and sends signal SIGKILL to the process
+    immediately.
 
 ``usePTY``
     Value is a bool and is optional.
@@ -822,7 +851,8 @@ Runs a ``shell`` command on the worker.
 ``logEnviron``
     Value is a bool and is optional.
     If value is not specified, the default is ``True``.
-    If ``True``, worker sends to master an ``update`` message with process environment key-value pairs at the beginning of a process.
+    If ``True``, worker sends to master an ``update`` message with process environment key-value
+    pairs at the beginning of a process.
 
 ``initial_stdin``
     Value is a string or ``None``.
@@ -835,12 +865,21 @@ Runs a ``shell`` command on the worker.
     If this is a string, it will be invoked via ``/bin/sh`` shell by calling it as ``/bin/sh -c <command>``.
     Otherwise, it must be a list, which will be executed directly.
 
+    If command succeeded, worker sends ``rc`` value 0 as an ``update`` message ``args`` key-value
+    pair. It can also send many other ``update`` messages with keys such as ``header``, ``stdout``
+    or ``stderr`` to inform about command execution. If command failed, it sends ``rc`` value with
+    the error number. If command timed out, it sends ``failure_reason`` key. The value of the
+    ``failure_reason`` key can be one of the following:
 
-    If command succeeded, worker sends ``rc`` value 0 as an ``update`` message ``args`` key-value pair.
-    It can also send many ``update`` messages with key ``header``, ``stdout`` or ```stderr` to inform about command execution.
-    If command failed, it sends ``rc`` value with the error number.
+     - ``timeout`` if the command timed out due to time specified by the ``maxTime`` parameter being
+       exceeded.
+     - ``timeout_without_output`` if the command timed out due to time specified by the ``timeout``
+       parameter being exceeded.
+     - ``max_lines_failure`` if the command is killed due to the number of lines specified by the
+       ``max_lines`` parameter being exceeded.
 
-    The basic structure of worker ``update`` message is explained in section :ref:`MsgPack_Keys_And_Values_Message`.
+    The basic structure of worker ``update`` message is explained in section
+    :ref:`MsgPack_Keys_And_Values_Message`.
 
 
 Command_name: ``upload_file``
@@ -848,13 +887,9 @@ Command_name: ``upload_file``
 
 Worker reads the contents of its file and sends them in chunks to write into the file on masters’s side.
 
-``workdir``
+``path``
     Value is a string.
-    It represents a base directory for the filename, relative to the builder's basedir.
-
-``workersrc``
-    Value is a string.
-    It represents a path to the worker-side file to read from, relative to the workdir.
+    It specifies the path of the worker file to read from.
 
 ``maxsize``
     Value is an integer.
@@ -875,9 +910,11 @@ Worker reads the contents of its file and sends them in chunks to write into the
     After reading the file is over, worker sends ``update_upload_file_close`` message.
     If ``keepstamp`` was ``True``, workers sends ``update_upload_file_utime`` message.
     If command succeeded, worker sends ``rc`` value 0 as an ``update`` message ``args`` key-value pair.
-    It can also send ``update`` messages with key ``header`` or ``stderr`` to inform about command execution.
+    It can also send ``update`` messages with key ``header`` or ``stderr`` to inform about command
+    execution.
 
-    If command failed, worker sends ``update_upload_file_close`` message and the ``update`` message with dictionary ``args`` key ``rc`` with the error number.
+    If command failed, worker sends ``update_upload_file_close`` message and the ``update`` message
+    with dictionary ``args`` key ``rc`` with the error number.
 
     The basic structure of worker ``update`` message is explained in section :ref:`MsgPack_Keys_And_Values_Message`.
 
@@ -888,13 +925,9 @@ Command_name: ``upload_directory``
 Similar to ``upload_file``.
 This command will upload an entire directory to the master, in the form of a tarball.
 
-``workdir``
+``path``
     Value is a string.
-    It represents a base directory for the filename, relative to the builder's basedir.
-
-``workersource``
-    Value is a string.
-    It represents a path to the worker-side directory to read from, relative to the workdir.
+    It specifies the path of the worker directory to upload.
 
 ``maxsize``
     Value is an integer.
@@ -910,11 +943,16 @@ This command will upload an entire directory to the master, in the form of a tar
     Compression algorithm to use – one of ``None``, 'bz2', or 'gz'.
 
     Worker sends data to the master with one or more ``update_upload_directory_write`` messages.
-    After reading the directory, worker sends ``update_upload_directory_unpack`` with no arguments to extract the tarball and ``rc`` value 0 as an ``update`` message ``args`` key-value pair if the command succeeded.
+    After reading the directory, worker sends ``update_upload_directory_unpack`` with no arguments
+    to extract the tarball and ``rc`` value 0 as an ``update`` message ``args`` key-value pair if
+    the command succeeded.
 
-    Otherwise, worker sends ``update`` message with dictionary ``args`` key ``header`` with information about the error that occurred and another ``update`` message with dictionary ``args`` key ``rc`` with the error number.
+    Otherwise, worker sends ``update`` message with dictionary ``args`` key ``header`` with
+    information about the error that occurred and another ``update`` message with dictionary
+    ``args`` key ``rc`` with the error number.
 
-The basic structure of worker ``update`` message is explained in section :ref:`MsgPack_Keys_And_Values_Message`.
+The basic structure of worker ``update`` message is explained in section
+:ref:`MsgPack_Keys_And_Values_Message`.
 
 
 Command_name: ``download_file``
@@ -922,13 +960,9 @@ Command_name: ``download_file``
 
 Downloads a file from master to worker.
 
-``workdir``
+``path``
     Value is a string.
-    It represents a base directory for the filename, relative to the builder's basedir.
-
-``workerdest``
-    Value is a string.
-    It represents a path to the worker-side file to write to, relative to the workdir.
+    It specifies the path of the worker file to create.
 
 ``maxsize``
     Value is an integer.
@@ -963,11 +997,15 @@ Downloads a file from master to worker.
 
     If ``None``, file has default permissions.
 
-    If command succeeded, worker will send ``rc`` value 0 as an ``update`` message ``args`` key-value pair.
+    If command succeeded, worker will send ``rc`` value 0 as an ``update`` message ``args``
+    key-value pair.
 
-    Otherwise, worker sends ``update`` message with dictionary ``args`` key ``header`` with information about the error that occurred and another ``update`` message with dictionary ``args`` key ``rc`` with the error number.
+    Otherwise, worker sends ``update`` message with dictionary ``args`` key ``header`` with
+    information about the error that occurred and another ``update`` message with dictionary
+    ``args`` key ``rc`` with the error number.
 
-    The basic structure of worker ``update`` message is explained in section :ref:`MsgPack_Keys_And_Values_Message`.
+    The basic structure of worker ``update`` message is explained in section
+    :ref:`MsgPack_Keys_And_Values_Message`.
 
 
 Command_name: ``listdir``
@@ -975,17 +1013,19 @@ Command_name: ``listdir``
 
 This command reads the directory and returns the list with directory contents.
 
-``dir``
+``path``
     Value is a string.
-    Specifies the directory relative to the builder’s basedir.
+    It specifies the path of a directory to list.
 
-    Worker creates the path to list by joining base directory and the given value.
+    If command succeeded, the list containing the names of the entries in the directory given by
+    that path is sent via ``update`` message in ``args`` key ``files``. Worker will also send
+    ``rc`` value 0 as an ``update`` message ``args`` key-value pair. If command failed, worker
+    sends ``update`` message with dictionary ``args`` key ``header`` with information about the
+    error that occurred and another ``update`` message with dictionary ``args`` key ``rc`` with the
+    error number.
 
-    If command succeeded, the list containing the names of the entries in the directory given by that path is sent via ``update`` message in ``args`` key ``files``.
-    Worker will also send ``rc`` value 0 as an ``update`` message ``args`` key-value pair.
-    If command failed, worker sends ``update`` message with dictionary ``args`` key ``header`` with information about the error that occurred and another ``update`` message with dictionary ``args`` key ``rc`` with the error number.
-
-    The basic structure of worker ``update`` message is explained in section :ref:`MsgPack_Keys_And_Values_Message`.
+    The basic structure of worker ``update`` message is explained in section
+    :ref:`MsgPack_Keys_And_Values_Message`.
 
 Command_name: ``mkdir``
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -993,32 +1033,35 @@ Command_name: ``mkdir``
 This command will create a directory on the worker.
 It will also create any intervening directories required.
 
-``dir``
-    Value is a string.
-    Specifies the directory relative to the builder’s basedir.
+``paths``
+    Value is a list of strings.
+    It specifies absolute paths of directories to create.
 
-    Worker creates the path to directory by joining the base directory and given value.
+    If command succeeded, worker will send ``rc`` value 0 as an ``update`` message ``args``
+    key-value pair.
 
-    If command succeeded, worker will send ``rc`` value 0 as an ``update`` message ``args`` key-value pair.
+    Otherwise, worker sends ``update`` message with dictionary ``args`` key ``header`` with
+    information about the error that occurred and another ``update`` message with dictionary
+    ``args`` key ``rc`` with the error number.
 
-    Otherwise, worker sends ``update`` message with dictionary ``args`` key ``header`` with information about the error that occurred and another ``update`` message with dictionary ``args`` key ``rc`` with the error number.
-
-    The basic structure of worker ``update`` message is explained in section :ref:`MsgPack_Keys_And_Values_Message`.
+    The basic structure of worker ``update`` message is explained in section
+    :ref:`MsgPack_Keys_And_Values_Message`.
 
 
 Command_name ``rmdir``
 ~~~~~~~~~~~~~~~~~~~~~~
 
-This command will remove a directory or file on the worker.
+This command will remove directories or files on the worker.
 
-``dir``
-    Value is a string or a list of strings.
-    It represents a name of a directory or directories to be removed.
+``paths``
+    Value is a list of strings.
+    It specifies absolute paths of directories or files to remove.
 
 ``logEnviron``
     Value is a bool and is optional.
     If value is not specified, the default is ``True``.
-    If ``True``, worker sends to master an ``update`` message with process environment key-value pairs at the beginning of a process.
+    If ``True``, worker sends to master an ``update`` message with process environment key-value
+    pairs at the beginning of a process.
 
 ``timeout``
     Value is an integer and is optional.
@@ -1027,17 +1070,20 @@ This command will remove a directory or file on the worker.
 
 ``maxTime``
     Value is an integer and is optional.
-    If value is not specified, the default is ``None``.
-    It represents, how many seconds a worker should wait before killing a process.
-    Even if command is still running and giving the output, ``maxTime`` variable sets the maximum time the command is allowed to be performing.
-    If ``maxTime`` is set to ``None``, command runs for as long as it needs unless ``timeout`` specifies otherwise.
+    If value is not specified, the default is ``None``. It represents, how many seconds a worker
+    should wait before killing a process. Even if command is still running and giving the output,
+    ``maxTime`` variable sets the maximum time the command is allowed to be performing. If
+    ``maxTime`` is set to ``None``, command runs for as long as it needs unless ``timeout``
+    specifies otherwise.
 
-    If command succeeded, worker sends ``rc`` value 0 as an ``update`` message ``args`` key-value pair.
-    It can also send many ``update`` messages with key ``header``, ``stdout`` or ``stderr`` to inform about command execution.
-    If command failed, worker changes the permissions of a directory and tries the removal once again.
-    If that does not help, worker sends ``rc`` value with the error number.
+    If command succeeded, worker sends ``rc`` value 0 as an ``update`` message ``args`` key-value
+    pair. It can also send many ``update`` messages with key ``header``, ``stdout`` or ``stderr``
+    to inform about command execution. If command failed, worker changes the permissions of a
+    directory and tries the removal once again. If that does not help, worker sends ``rc`` value
+    with the error number.
 
-    The basic structure of worker ``update`` message is explained in section :ref:`MsgPack_Keys_And_Values_Message`.
+    The basic structure of worker ``update`` message is explained in section
+    :ref:`MsgPack_Keys_And_Values_Message`.
 
 
 Command_name: ``cpdir``
@@ -1045,17 +1091,18 @@ Command_name: ``cpdir``
 
 This command copies a directory from one place in the worker to another.
 
-``fromdir``
+``from_path``
     Value is a string.
-    Source directory for the copy operation, relative to the builder’s basedir.
+    It specifies the absolute path to the source directory for the copy operation.
 
-``todir``
+``to_path``
     Value is a string.
-    Destination directory for the copy operation, relative to the builder’s basedir.
+    It specifies the absolute path to the destination directory for the copy operation.
 
 ``logEnviron``
     Value is a bool.
-    If ``True``, worker sends to master an ``update`` message with process environment key-value pairs at the beginning of a process.
+    If ``True``, worker sends to master an ``update`` message with process environment key-value
+    pairs at the beginning of a process.
 
 ``timeout``
     Value is an integer.
@@ -1064,29 +1111,32 @@ This command copies a directory from one place in the worker to another.
 
 ``maxTime``
     Value is an integer and is optional.
-    If value is not specified, the default is ``None``.
-    It represents, how many seconds a worker should wait before killing a process.
-    Even if command is still running and giving the output, ``maxTime`` variable sets the maximum time the command is allowed to be performing.
-    If ``maxTime`` is set to ``None``, command runs for as long as it needs unless ``timeout`` specifies otherwise.
+    If value is not specified, the default is ``None``. It represents, how many seconds a worker
+    should wait before killing a process. Even if command is still running and giving the output,
+    ``maxTime`` variable sets the maximum time the command is allowed to be performing. If
+    ``maxTime`` is set to ``None``, command runs for as long as it needs unless ``timeout``
+    specifies otherwise.
 
-    If command succeeded, worker sends ``rc`` value 0 as an ``update`` message ``args`` key-value pair.
-    It can also send many ``update`` messages with key ``header``, ``stdout`` or ```stderr` to inform about command execution.
-    If command failed, it sends ``rc`` value with the error number.
+    If command succeeded, worker sends ``rc`` value 0 as an ``update`` message ``args`` key-value
+    pair. It can also send many ``update`` messages with key ``header``, ``stdout`` or ```stderr`
+    to inform about command execution. If command failed, it sends ``rc`` value with the error
+    number.
 
-    The basic structure of worker ``update`` message is explained in section :ref:`MsgPack_Keys_And_Values_Message`.
+    The basic structure of worker ``update`` message is explained in section
+    :ref:`MsgPack_Keys_And_Values_Message`.
 
 
 Command_name: ``stat``
 ~~~~~~~~~~~~~~~~~~~~~~
 
 This command returns status information about workers file or directory.
-Path of that file or directory is constructed by joining the Builder base directory and path in ``file`` value.
 
-``file``
+``path``
     Value is a string.
-    It represents the filename relative to the Builder’s basedir to get the status of.
+    It specifies the path of a file or directory to get the status of.
 
-If command succeeded, status information is sent to the master in an ``update`` message, where ``args`` has a key ``stat`` with a value of a tuple of these 10 elements:
+If command succeeded, status information is sent to the master in an ``update`` message, where
+``args`` has a key ``stat`` with a value of a tuple of these 10 elements:
 
 0 - File mode: file type and file mode bits (permissions) in Unix convention.
 
@@ -1112,31 +1162,40 @@ Unix time or the time of Windows creation, expressed in seconds.
 
 9 - time of last status change in seconds.
 
-    If command succeeded, worker also sends ``rc`` value 0 as an ``update`` message ``args`` key-value pair.
+    If command succeeded, worker also sends ``rc`` value 0 as an ``update`` message ``args``
+    key-value pair.
 
-    Otherwise, worker sends ``update`` message with dictionary ``args`` key ``header`` with information about the error that occurred and another ``update`` message with dictionary ``args`` key ``rc`` with the error number.
+    Otherwise, worker sends ``update`` message with dictionary ``args`` key ``header`` with
+    information about the error that occurred and another ``update`` message with dictionary
+    ``args`` key ``rc`` with the error number.
 
-    The basic structure of worker ``update`` message is explained in section :ref:`MsgPack_Keys_And_Values_Message`.
+    The basic structure of worker ``update`` message is explained in section
+    :ref:`MsgPack_Keys_And_Values_Message`.
 
 
 Command_name: ``glob``
 ~~~~~~~~~~~~~~~~~~~~~~
 
-    Worker sends to the master a possibly-empty list of path names that match shell-style path specification.
-
-    Path of the file is constructed by joining the Builder base directory and path in ``path`` value.
-    Pathname can be absolute or relative with or without shell-style wildcards.
+    Worker sends to the master a possibly-empty list of path names that match shell-style path
+    specification.
 
 ``path``
     Value is a string.
-    It represents a shell-style path specification of a pattern.
+    It specifies a shell-style path pattern.
+    Path pattern can contain shell-style wildcards and must represent an absolute path.
 
-    If command succeeded, the result is sent to the master in an ``update`` message, where ``args`` has a key ``file`` with the value of that possibly-empty path list.
+    If command succeeded, the result is sent to the master in an ``update`` message, where ``args``
+    has a key ``file`` with the value of that possibly-empty path list. This path list may contain
+    broken symlinks as in the shell. It is not specified whether path list is sorted.
+
     Worker also sends ``rc`` value 0 as an ``update`` message ``args`` key-value pair.
 
-    Otherwise, worker sends ``update`` message with dictionary ``args`` key ``header`` with information about the error that occurred and another ``update`` message with dictionary ``args`` key ``rc`` with the error number.
+    Otherwise, worker sends ``update`` message with dictionary ``args`` key ``header`` with
+    information about the error that occurred and another ``update`` message with dictionary
+    ``args`` key ``rc`` with the error number.
 
-    The basic structure of worker ``update`` message is explained in section :ref:`MsgPack_Keys_And_Values_Message`.
+    The basic structure of worker ``update`` message is explained in section
+    :ref:`MsgPack_Keys_And_Values_Message`.
 
 
 Command_name: ``rmfile``
@@ -1146,27 +1205,34 @@ This command removes the specified file.
 
 ``path``
     Value is a string.
-    It represents the file path relative to the builder’s basedir.
-    Worker removes (deletes) the file ``path``.
+    It specifies a path of a file to delete.
 
     If command succeeded, worker sends ``rc`` value 0 as an ``update`` message ``args`` key-value pair.
 
-    Otherwise, worker sends ``update`` message with dictionary ``args`` key ``header`` with information about the error that occurred and another ``update`` message with dictionary ``args`` key ``rc`` with the error number.
+    Otherwise, worker sends ``update`` message with dictionary ``args`` key ``header`` with
+    information about the error that occurred and another ``update`` message with dictionary
+    ``args`` key ``rc`` with the error number.
 
-    The basic structure of worker ``update`` message is explained in section :ref:`MsgPack_Keys_And_Values_Message`.
+    The basic structure of worker ``update`` message is explained in section
+    :ref:`MsgPack_Keys_And_Values_Message`.
 
 
 .. _MsgPack_Keys_And_Values_Message:
 
 
-Keys and values of ``args`` dictionary value in ``update`` request message
---------------------------------------------------------------------------
+Contents of the value corresponding to ``args`` key in the dictionary of ``update`` request message
+---------------------------------------------------------------------------------------------------
 
-Commands may have specific key-value pairs so only common ones are described here.
+The ``args`` key-value pair describes information that the request message sends to master. The
+value is a list of lists. Each sub-list contains a name-value pair and represents a single update.
+First element in a list represents the name of update (see below) and second element represents its
+value. Commands may have their own update names so only common ones are described here.
 
 ``stdout``
-    Value is a standard output of a process.
-    Some of the commands that master requests worker to start, may initiate processes which output a result as a standard output and this result is saved in the value of ``stdout``.
+    Value is a standard output of a process as a string.
+    Some of the commands that master requests worker to start, may initiate processes which output
+    a result as a standard output and this result is saved in the value of ``stdout``.
+    The value satisfies the requirements described in a section below.
 
 ``rc``
     Value is an integer.
@@ -1174,29 +1240,74 @@ Commands may have specific key-value pairs so only common ones are described her
     0 if the process exit was successful.
     Any other number represents a failure.
 
+``failure_reason``
+
+    Value is a string and describes additional scenarios when a process failed.
+    The value of the ``failure_reason`` key can be one of the following:
+
+     - ``timeout`` if the command timed out due to time specified by the ``maxTime`` parameter being
+       exceeded.
+     - ``timeout_without_output`` if the command timed out due to time specified by the ``timeout``
+       parameter being exceeded.
+     - ``max_lines_failure`` if the command is killed due to the number of lines specified by the
+       ``max_lines`` parameter being exceeded.
+
 ``header``
-    Value is a string.
+    Value is a string of a header.
     It represents additional information about how the command worked.
-    For example, information may include the command name and arguments, working directory and environment or various errors or warnings of a process or other information that may be useful for debugging.
+    For example, information may include the command name and arguments, working directory and
+    environment or various errors or warnings of a process or other information that may be useful
+    for debugging.
+    The value satisfies the requirements described in a section below.
 
 ``files``
     Value is a list of strings.
 
-    1) If the ``update`` message was a response to master request message ``start_command`` with a key value pair ``command_name`` and ``glob``, then strings in this list represent path names that matched pathname given by the master.
+    1) If the ``update`` message was a response to master request message ``start_command`` with
+    a key value pair ``command_name`` and ``glob``, then strings in this list represent path names
+    that matched pathname given by the master.
 
-    2) If the ``update`` message was a response to master request message ``start_command`` with a key value pair ``command_name`` and ``listdir``, then strings in this list represent the names of the entries in the directory given by path, which master sent as an argument.
+    2) If the ``update`` message was a response to master request message ``start_command`` with a
+    key value pair ``command_name`` and ``listdir``, then strings in this list represent the names
+    of the entries in the directory given by path, which master sent as an argument.
 
 ``stderr``
-    Value is a standard error of a process.
-    Some of the commands that master requests worker to start may initiate processes which can output a result as a standard error and this result is saved in the value of ``stderr``.
+    Value is a standard error of a process as a string.
+    Some of the commands that master requests worker to start may initiate processes which can
+    output a result as a standard error and this result is saved in the value of ``stderr``.
+    The value satisfies the requirements described in a section below.
 
-``Tuple (“log”, name)``
-    Value is a string.
+``log``
+    Value is a list where the first element represents the name of the log and the second element
+    is a list, representing the contents of the file.
+    The composition of this second element is described in the section below.
     This message is used to transfer the contents of the file that master requested worker to read.
-    This file is identified by the second member in workers tuple.
-    The same value is sent by master as the key of dictionary represented by ``logfile`` key within ``args`` dictionary of ``StartCommand`` command.
-    The string value of the message is the contents of a file that worker read.
+    This file is identified by the name of the log.
+    The same value is sent by master as the key of dictionary represented by ``logfile`` key within
+    ``args`` dictionary of ``StartCommand`` command.
 
 ``elapsed``
     Value is an integer.
-    It represents how much time has passed between the start of a command and the completion in seconds.
+    It represents how much time has passed between the start of a command and the completion in
+    seconds.
+
+Requirements for content lists of ``stdout``, ``stderr``, ``header`` and ``log``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The lists that represents the contents of the output or a file consist of three elements.
+
+First element is a string with the content, which must be processed using the following algorithm:
+
+* Each value may contain one or more lines (characters with a terminating ``\n`` character).
+    Each line is not longer than internal ``maxsize`` value on worker side.
+    Longer lines are split into multiple lines where each except the last line contains exactly
+    ``maxsize`` characters and the last line may contain less.
+
+* The lines are run through an internal worker cleanup regex.
+
+Second element is a list of indexes, representing the positions of newline characters in the string
+of first tuple element.
+
+Third element is a list of numbers, representing at what time each line was received as an output
+while processing the command.
+
+The number of elements in both lists is always the same.

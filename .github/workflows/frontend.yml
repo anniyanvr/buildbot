@@ -1,0 +1,108 @@
+name: Frontend
+on:
+  push:
+    branches:
+    - master
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  js_unit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: "actions/checkout@v7"
+      - uses: "actions/setup-node@v7"
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: "js_unit"
+        run: make frontend_tests
+
+  tarballs:
+    strategy:
+      matrix:
+        python-version:
+          - "3.9"
+          - "3.15"
+
+    name: tarballs / python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: "actions/checkout@v7"
+      - uses: "actions/setup-node@v7"
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - uses: "actions/setup-python@v7"
+        with:
+          python-version: "${{ matrix.python-version }}"
+      - uses: "astral-sh/setup-uv@v10.3.3"
+
+      - name: "maketarballs"
+        run: make tarballs
+
+      - uses: "actions/upload-artifact@v7"
+        with:
+          name: dist-py${{ matrix.python-version }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  e2e:
+    needs:
+      - tarballs
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.9"
+          - "3.15"
+        dist:
+          - "whl"
+          - "tar.gz"
+
+    name: e2e ${{ matrix.dist }} / python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: "actions/checkout@v7"
+      - uses: "actions/setup-node@v7"
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: 'e2e/package-lock.json'
+
+      - uses: "actions/setup-python@v7"
+        with:
+          python-version: "${{ matrix.python-version }}"
+      - uses: "astral-sh/setup-uv@v10.3.3"
+
+      - uses: "actions/download-artifact@v8"
+        with:
+          name: dist-py${{ matrix.python-version }}
+          path: dist/
+
+      - name: "Install e2e deps"
+        run: cd e2e && npm ci
+      - name: "Install Playwright browsers"
+        timeout-minutes: 10
+        run: cd e2e && npx playwright install --with-deps chromium firefox
+
+      - name: "e2e"
+        run: ./common/smokedist-react.sh ${{ matrix.dist }}
+
+      - uses: "actions/upload-artifact@v7"
+        if: ${{ !cancelled() }}
+        with:
+          name: e2e-report-${{ matrix.dist }}-py${{ matrix.python-version }}
+          path: e2e/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7

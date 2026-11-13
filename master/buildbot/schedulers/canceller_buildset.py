@@ -13,6 +13,12 @@
 #
 # Copyright Buildbot Team Members
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+from typing import Any
+from typing import ClassVar
+
 from twisted.internet import defer
 
 from buildbot import config
@@ -22,18 +28,25 @@ from buildbot.util.service import BuildbotService
 from buildbot.util.ssfilter import SourceStampFilter
 from buildbot.util.ssfilter import extract_filter_values
 
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from buildbot.util.twisted import InlineCallbacksType
+
 
 class _FailingSingleBuilderConfig:
-    def __init__(self, builders_to_cancel, filter):
+    def __init__(self, builders_to_cancel: list[str] | None, filter: SourceStampFilter) -> None:
         self.builders_to_cancel = builders_to_cancel
         self.filter = filter
 
 
 class _FailingBuilderConfig:
-    def __init__(self):
-        self._by_builder = {}
+    def __init__(self) -> None:
+        self._by_builder: dict[str, list[_FailingSingleBuilderConfig]] = {}
 
-    def add_config(self, builders, builders_to_cancel, filter):
+    def add_config(
+        self, builders: list[str], builders_to_cancel: list[str] | None, filter: SourceStampFilter
+    ) -> None:
         assert builders is not None
 
         config = _FailingSingleBuilderConfig(builders_to_cancel, filter)
@@ -41,7 +54,9 @@ class _FailingBuilderConfig:
         for builder in builders:
             self._by_builder.setdefault(builder, []).append(config)
 
-    def get_all_matched(self, builder_name, props):
+    def get_all_matched(
+        self, builder_name: str, props: dict[str, Any]
+    ) -> list[_FailingSingleBuilderConfig]:
         assert builder_name is not None
 
         configs = self._by_builder.get(builder_name, [])
@@ -49,43 +64,47 @@ class _FailingBuilderConfig:
 
 
 class FailingBuildsetCanceller(BuildbotService):
+    compare_attrs: ClassVar[Sequence[str]] = (*BuildbotService.compare_attrs, 'filters')
 
-    compare_attrs = BuildbotService.compare_attrs + ('filters',)
-
-    def checkConfig(self, name, filters):
+    def checkConfig(self, name: str, filters: list[tuple[Any, ...]], **kwargs: Any) -> None:  # type: ignore[override]
         FailingBuildsetCanceller.check_filters(filters)
 
         self.name = name
 
         self._build_finished_consumer = None
 
-    def reconfigService(self, name, filters):
+    def reconfigService(self, name: str, filters: list[tuple[Any, ...]], **kwargs: Any) -> None:  # type: ignore[override]
         self.filters = FailingBuildsetCanceller.filter_tuples_to_filter_set_object(filters)
 
     @defer.inlineCallbacks
-    def startService(self):
+    def startService(self) -> InlineCallbacksType[None]:  # type: ignore[override]
         yield super().startService()
-        self._build_finished_consumer = \
-            yield self.master.mq.startConsuming(self._on_build_finished,
-                                                ('builds', None, 'finished'))
+        self._build_finished_consumer = yield self.master.mq.startConsuming(
+            self._on_build_finished, ('builds', None, 'finished')
+        )
 
     @defer.inlineCallbacks
-    def stopService(self):
-        yield self._build_finished_consumer.stopConsuming()
+    def stopService(self) -> InlineCallbacksType[None]:
+        yield self._build_finished_consumer.stopConsuming()  # type: ignore[attr-defined]
 
     @classmethod
-    def check_filters(cls, filters):
+    def check_filters(cls, filters: list[tuple[Any, ...]]) -> None:
         if not isinstance(filters, list):
             config.error(f'{cls.__name__}: The filters argument must be a list of tuples')
 
         for filter in filters:
-            if not isinstance(filter, tuple) or \
-                    len(filter) != 3 or \
-                    not isinstance(filter[2], SourceStampFilter):
-                config.error(('{}: The filters argument must be a list of tuples each of which ' +
-                              'contains builders to track as the first item, builders to cancel ' +
-                              'as the second and SourceStampFilter as the third'
-                              ).format(cls.__name__))
+            if (
+                not isinstance(filter, tuple)
+                or len(filter) != 3
+                or not isinstance(filter[2], SourceStampFilter)
+            ):
+                config.error(
+                    (
+                        '{}: The filters argument must be a list of tuples each of which '
+                        + 'contains builders to track as the first item, builders to cancel '
+                        + 'as the second and SourceStampFilter as the third'
+                    ).format(cls.__name__)
+                )
 
             builders, builders_to_cancel, _ = filter
 
@@ -94,10 +113,12 @@ class FailingBuildsetCanceller(BuildbotService):
                 if builders_to_cancel is not None:
                     extract_filter_values(builders_to_cancel, 'builders_to_cancel')
             except Exception as e:
-                config.error(f'{cls.__name__}: When processing filter builders: {str(e)}')
+                config.error(f'{cls.__name__}: When processing filter builders: {e!s}')
 
     @classmethod
-    def filter_tuples_to_filter_set_object(cls, filters):
+    def filter_tuples_to_filter_set_object(
+        cls, filters: list[tuple[Any, ...]]
+    ) -> _FailingBuilderConfig:
         filter_set = _FailingBuilderConfig()
 
         for filter in filters:
@@ -113,7 +134,9 @@ class FailingBuildsetCanceller(BuildbotService):
         return filter_set
 
     @defer.inlineCallbacks
-    def _on_build_finished(self, key, build):
+    def _on_build_finished(
+        self, key: tuple[str, ...], build: dict[str, Any]
+    ) -> InlineCallbacksType[None]:
         if build['results'] != FAILURE:
             return
 
@@ -123,7 +146,7 @@ class FailingBuildsetCanceller(BuildbotService):
 
         sourcestamps = buildset['sourcestamps']
 
-        builders_to_cancel = set()
+        builders_to_cancel: set[str] | None = set()
         for ss in sourcestamps:
             configs = self.filters.get_all_matched(builder['name'], ss)
             for c in configs:
@@ -135,11 +158,17 @@ class FailingBuildsetCanceller(BuildbotService):
 
         all_bs_buildrequests = yield self.master.data.get(
             ('buildrequests',),
-            filters=[resultspec.Filter('buildsetid', 'eq', [buildset['bsid']]),
-                     resultspec.Filter('complete', 'eq', [False])])
+            filters=[
+                resultspec.Filter('buildsetid', 'eq', [buildset['bsid']]),
+                resultspec.Filter('complete', 'eq', [False]),
+            ],
+        )
 
-        all_bs_buildrequests = [br for br in all_bs_buildrequests
-                                if br['buildrequestid'] != buildrequest['buildrequestid']]
+        all_bs_buildrequests = [
+            br
+            for br in all_bs_buildrequests
+            if br['buildrequestid'] != buildrequest['buildrequestid']
+        ]
 
         for br in all_bs_buildrequests:
             brid = br['buildrequestid']

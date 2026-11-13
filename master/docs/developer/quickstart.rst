@@ -21,18 +21,20 @@ Buildbot uses Twisted `trial <http://twistedmatrix.com/trac/wiki/TwistedTrial>`_
 Windows users also need GNU make on their machines.
 The easiest way is to install it via the choco package manager, ``choco install make``.
 But WSL or MSYS2 is an even better option because of the integrated bash.
+Python dependencies are managed with `uv <https://docs.astral.sh/uv/>`_, which you need to install first.
 
 Following is a quick shell session to put you on the right track, including running the test suite.
 
 .. code-block:: bash
 
-    # the usual buildbot development bootstrap with git and virtualenv
+    # the usual buildbot development bootstrap with git and uv
     git clone https://github.com/buildbot/buildbot
     cd buildbot
 
-    # run a helper script which creates the virtualenv for development.
+    # create the virtualenv for development in .venv, with the locked dependencies.
     # Virtualenv allows to install python packages without affecting
-    # other parts of the system
+    # other parts of the system.
+    # Without make (e.g. on Windows), run `uv sync` instead.
     make virtualenv
 
     # activate the virtualenv (you should now see (.venv) in your shell prompt)
@@ -48,7 +50,7 @@ Following is a quick shell session to put you on the right track, including runn
     trial -n --reporter=bwverbose buildbot | grep mail
 
     # run only one test module
-    trial buildbot.test.unit.test_reporters_mail
+    trial buildbot.test.unit.reporters.test_mail.TestMailNotifier
 
     # you can also skip the virtualenv activation and
     # run the test suite in one step with make
@@ -65,27 +67,28 @@ Create a JavaScript Frontend Environment
 ----------------------------------------
 
 This section describes how to get set up quickly to hack on the JavaScript UI.
-It does not assume familiarity with Python, although a Python installation is required, as well as ``virtualenv``.
-You will also need ``NodeJS``, and ``yarn`` installed.
+It does not assume familiarity with Python, although a Python installation is required, as well as ``uv``.
+You will also need ``NodeJS`` installed, and ``corepack`` enabled for ``npm`` (``corepack enable npm``).
 
 Prerequisites
 ~~~~~~~~~~~~~
 
 .. note::
 
-  Buildbot UI requires at least node 4 or newer and yarn.
+  Buildbot UI requires at least node 14.18 or newer and npm 9.4 or newer.
 
-* Install LTS release of node.js.
+* Install LTS release of Node.js.
 
-  http://nodejs.org/ is a good start for Windows and OSX.
+  http://nodejs.org/ is a good start for Windows and macOS.
 
-  For modern Linux distributions, you can often just install the distribution-provided node version if it's recent enough.
-  You can use yarn from the same source.
-  The below method has been tested on Ubuntu 18.04 and should work on recent enough Debian.
+  For modern Linux distributions, you can often just install the distribution-provided packages if
+  they are recent enough.
+
+  The below method has been tested on Debian Bookworm.
 
   .. code-block:: none
 
-    sudo apt install nodejs yarn
+    sudo apt install nodejs
 
   In other cases, use https://deb.nodesource.com.
 
@@ -105,7 +108,7 @@ Next, you need to install the ``buildbot`` and ``buildbot-www`` python packages 
 
     make frontend
 
-This will fetch a number of python dependencies from pypi, the Python package repository, and also a number of node.js dependencies that are used for building the web application.
+This will fetch a number of Python dependencies from PyPI, the Python package repository, and also a number of Node.js dependencies that are used for building the web application.
 Then the actual frontend code will be built with artifacts stored in the source directory, e.g. ``www/base/buildbot_www/static``.
 Finally, the built python packages will be installed to virtualenv environment as ``--editable`` packages.
 This means that the webserver will load resources from ``www/base/buildbot_www/static``.
@@ -128,7 +131,7 @@ This can be done by running the following in e.g. ``www/base`` directory:
 
 .. code-block:: none
 
-    yarn run build-dev
+    npm run build-dev
 
 The above rebuilds the resources only once. After each change you need to refresh the built resources.
 The actual commands that are run are stored in the ``package.json`` file under the ``scripts`` key.
@@ -137,7 +140,7 @@ To avoid the need to type the above command after each change, you can use the f
 
 .. code-block:: none
 
-    yarn run dev
+    npm run dev
 
 This will watch files for changes and reload automatically.
 
@@ -145,14 +148,10 @@ To run unit tests, do the following:
 
 .. code-block:: none
 
-    yarn run test
+    npm run test
 
 To run unit tests within all frontend packages within Buildbot, do the following at the root of the project:
 
 .. code-block:: none
 
     make frontend_tests
-
-.. note::
-
-   You need to have Chrome-based browser installed in order to run unit tests in the default configuration.

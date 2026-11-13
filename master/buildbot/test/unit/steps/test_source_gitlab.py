@@ -13,6 +13,11 @@
 #
 # Copyright Buildbot Team Members
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+from typing import Any
+
 from twisted.trial import unittest
 
 from buildbot.process.results import SUCCESS
@@ -24,71 +29,75 @@ from buildbot.test.steps import ExpectStat
 from buildbot.test.util import config
 from buildbot.test.util import sourcesteps
 
+if TYPE_CHECKING:
+    from twisted.internet import defer
 
-class TestGitLab(sourcesteps.SourceStepMixin, config.ConfigErrorsMixin,
-                 TestReactorMixin,
-                 unittest.TestCase):
+    from buildbot.process import buildstep
+
+
+class TestGitLab(
+    sourcesteps.SourceStepMixin, config.ConfigErrorsMixin, TestReactorMixin, unittest.TestCase
+):
     stepClass = gitlab.GitLab
 
-    def setUp(self):
+    def setUp(self) -> defer.Deferred[None]:  # type: ignore[override]
         self.setup_test_reactor()
         self.sourceName = self.stepClass.__name__
-        return self.setUpSourceStep()
+        return self.setup_test_build_step()
 
-    def setup_step(self, step, args, **kwargs):
+    def setup_step(self, step: Any, args: Any, **kwargs: Any) -> buildstep.BuildStep:  # type: ignore[override]
         step = super().setup_step(step, args, **kwargs)
         step.build.properties.setProperty("source_branch", "ms-viewport", "gitlab source branch")
-        step.build.properties.setProperty("source_git_ssh_url",
+        step.build.properties.setProperty(
+            "source_git_ssh_url",
             "git@gitlab.example.com:build/awesome_project.git",
-            "gitlab source git ssh url")
+            "gitlab source git ssh url",
+        )
         step.build.properties.setProperty("source_project_id", 2337, "gitlab source project ID")
         step.build.properties.setProperty("target_branch", "master", "gitlab target branch")
-        step.build.properties.setProperty("target_git_ssh_url",
+        step.build.properties.setProperty(
+            "target_git_ssh_url",
             "git@gitlab.example.com:mmusterman/awesome_project.git",
-            "gitlab target git ssh url")
+            "gitlab target git ssh url",
+        )
         step.build.properties.setProperty("target_project_id", 239, "gitlab target project ID")
         return step
 
-    def tearDown(self):
-        return self.tearDownSourceStep()
-
-    def test_with_merge_branch(self):
+    def test_with_merge_branch(self) -> defer.Deferred[None]:
         self.setup_step(
-            self.stepClass(repourl='git@gitlab.example.com:mmusterman/awesome_project.git',
-                           mode='full', method='clean'),
-            dict(branch='master', revision='12345678'))
+            self.stepClass(
+                repourl='git@gitlab.example.com:mmusterman/awesome_project.git',
+                mode='full',
+                method='clean',
+            ),
+            {"branch": 'master', "revision": '12345678'},
+        )
 
         self.expect_commands(
-            ExpectShell(workdir='wkdir',
-                        command=['git', '--version'])
+            ExpectShell(workdir='wkdir', command=['git', '--version'])
             .stdout('git version 1.7.5')
             .exit(0),
-            ExpectStat(file='wkdir/.buildbot-patched', log_environ=True)
-            .exit(1),
-            ExpectListdir(dir='wkdir')
-            .files(['.git'])
-            .exit(0),
-            ExpectShell(workdir='wkdir',
-                        command=['git', 'clean', '-f', '-f', '-d'])
-            .exit(0),
+            ExpectStat(file='wkdir/.buildbot-patched', log_environ=True).exit(1),
+            ExpectListdir(dir='wkdir').files(['.git']).exit(0),
+            ExpectShell(workdir='wkdir', command=['git', 'clean', '-f', '-f', '-d']).exit(0),
             # here we always ignore revision, and fetch the merge branch
-            ExpectShell(workdir='wkdir',
-                        command=['git', 'fetch', '-f', '-t',
-                                 'git@gitlab.example.com:build/awesome_project.git',
-                                 'ms-viewport', '--progress'])
-            .exit(0),
-            ExpectShell(workdir='wkdir',
-                        command=['git', 'checkout', '-f', 'FETCH_HEAD'])
-            .exit(0),
-            ExpectShell(workdir='wkdir',
-                        command=['git', 'checkout', '-B', 'ms-viewport'])
-            .exit(0),
-            ExpectShell(workdir='wkdir',
-                        command=['git', 'rev-parse', 'HEAD'])
+            ExpectShell(
+                workdir='wkdir',
+                command=[
+                    'git',
+                    'fetch',
+                    '-f',
+                    '--progress',
+                    'ssh://git@gitlab.example.com:22/build/awesome_project.git',
+                    'ms-viewport',
+                ],
+            ).exit(0),
+            ExpectShell(workdir='wkdir', command=['git', 'checkout', '-f', 'FETCH_HEAD']).exit(0),
+            ExpectShell(workdir='wkdir', command=['git', 'checkout', '-B', 'ms-viewport']).exit(0),
+            ExpectShell(workdir='wkdir', command=['git', 'rev-parse', 'HEAD'])
             .stdout('f6ad368298bd941e934a41f3babc827b2aa95a1d')
-            .exit(0)
+            .exit(0),
         )
         self.expect_outcome(result=SUCCESS)
-        self.expect_property(
-            'got_revision', 'f6ad368298bd941e934a41f3babc827b2aa95a1d', 'GitLab')
+        self.expect_property('got_revision', 'f6ad368298bd941e934a41f3babc827b2aa95a1d', 'GitLab')
         return self.run_step()

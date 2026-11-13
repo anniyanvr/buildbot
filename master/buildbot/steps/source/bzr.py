@@ -12,9 +12,12 @@
 # Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 # Copyright Buildbot Team Members
-
+from __future__ import annotations
 
 import os
+from typing import TYPE_CHECKING
+from typing import Any
+from typing import cast
 
 from twisted.internet import defer
 from twisted.internet import reactor
@@ -26,15 +29,26 @@ from buildbot.process import remotecommand
 from buildbot.process import results
 from buildbot.steps.source.base import Source
 
+if TYPE_CHECKING:
+    from twisted.internet.interfaces import IReactorTime
+
+    from buildbot.process.buildrequest import TempChange
+    from buildbot.util.twisted import InlineCallbacksType
+
 
 class Bzr(Source):
-
     name = 'bzr'
     renderables = ['repourl', 'baseURL']
 
-    def __init__(self, repourl=None, baseURL=None, mode='incremental',
-                 method=None, defaultBranch=None, **kwargs):
-
+    def __init__(
+        self,
+        repourl: str | None = None,
+        baseURL: str | None = None,
+        mode: str = 'incremental',
+        method: str | None = None,
+        defaultBranch: str | None = None,
+        **kwargs: Any,
+    ) -> None:
         self.repourl = repourl
         self.baseURL = baseURL
         self.branch = defaultBranch
@@ -42,12 +56,10 @@ class Bzr(Source):
         self.method = method
         super().__init__(**kwargs)
         if repourl and baseURL:
-            raise ValueError("you must provide exactly one of repourl and"
-                             " baseURL")
+            raise ValueError("you must provide exactly one of repourl and baseURL")
 
         if repourl is None and baseURL is None:
-            raise ValueError("you must provide at least one of repourl and"
-                             " baseURL")
+            raise ValueError("you must provide at least one of repourl and baseURL")
 
         if baseURL is not None and defaultBranch is None:
             raise ValueError("you must provide defaultBranch with baseURL")
@@ -59,7 +71,9 @@ class Bzr(Source):
             assert self.method in ['clean', 'fresh', 'clobber', 'copy', None]
 
     @defer.inlineCallbacks
-    def run_vc(self, branch, revision, patch):
+    def run_vc(
+        self, branch: str | None, revision: str | None, patch: Any
+    ) -> InlineCallbacksType[int]:
         if branch:
             self.branch = branch
         self.revision = revision
@@ -67,7 +81,7 @@ class Bzr(Source):
         self.stdio_log = yield self.addLogForRemoteCommands("stdio")
 
         if self.repourl is None:
-            self.repourl = os.path.join(self.baseURL, self.branch)
+            self.repourl = os.path.join(cast(str, self.baseURL), cast(str, self.branch))
 
         installed = yield self.checkBzr()
 
@@ -87,7 +101,7 @@ class Bzr(Source):
         return results.SUCCESS
 
     @defer.inlineCallbacks
-    def mode_incremental(self):
+    def mode_incremental(self) -> InlineCallbacksType[None]:
         updatable = yield self._sourcedirIsUpdatable()
         if updatable:
             command = ['update']
@@ -98,7 +112,7 @@ class Bzr(Source):
             yield self._doFull()
 
     @defer.inlineCallbacks
-    def mode_full(self):
+    def mode_full(self) -> InlineCallbacksType[None]:
         if self.method == 'clobber':
             yield self.clobber()
             return
@@ -119,9 +133,14 @@ class Bzr(Source):
             raise ValueError("Unknown method, check your configuration")
 
     @defer.inlineCallbacks
-    def _clobber(self):
-        cmd = remotecommand.RemoteCommand('rmdir', {'dir': self.workdir,
-                                                    'logEnviron': self.logEnviron, })
+    def _clobber(self) -> InlineCallbacksType[None]:
+        cmd = remotecommand.RemoteCommand(
+            'rmdir',
+            {
+                'dir': self.workdir,
+                'logEnviron': self.logEnviron,
+            },
+        )
         cmd.useLog(self.stdio_log, False)
         yield self.runCommand(cmd)
 
@@ -129,26 +148,35 @@ class Bzr(Source):
             raise RuntimeError("Failed to delete directory")
 
     @defer.inlineCallbacks
-    def clobber(self):
+    def clobber(self) -> InlineCallbacksType[None]:
         yield self._clobber()
         yield self._doFull()
 
     @defer.inlineCallbacks
-    def copy(self):
-        cmd = remotecommand.RemoteCommand('rmdir', {'dir': 'build',
-                                                    'logEnviron': self.logEnviron, })
+    def copy(self) -> InlineCallbacksType[None]:
+        cmd = remotecommand.RemoteCommand(
+            'rmdir',
+            {
+                'dir': 'build',
+                'logEnviron': self.logEnviron,
+            },
+        )
         cmd.useLog(self.stdio_log, False)
         yield self.runCommand(cmd)
         yield self.mode_incremental()
 
-        cmd = remotecommand.RemoteCommand('cpdir',
-                                          {'fromdir': 'source',
-                                           'todir': 'build',
-                                           'logEnviron': self.logEnviron, })
+        cmd = remotecommand.RemoteCommand(
+            'cpdir',
+            {
+                'fromdir': 'source',
+                'todir': 'build',
+                'logEnviron': self.logEnviron,
+            },
+        )
         cmd.useLog(self.stdio_log, False)
         yield self.runCommand(cmd)
 
-    def clean(self):
+    def clean(self) -> defer.Deferred[Any]:
         d = self._dovccmd(['clean-tree', '--ignored', '--force'])
         command = ['update']
         if self.revision:
@@ -156,7 +184,7 @@ class Bzr(Source):
         d.addCallback(lambda _: self._dovccmd(command))
         return d
 
-    def fresh(self):
+    def fresh(self) -> defer.Deferred[Any]:
         d = self._dovccmd(['clean-tree', '--force'])
         command = ['update']
         if self.revision:
@@ -165,13 +193,13 @@ class Bzr(Source):
         return d
 
     @defer.inlineCallbacks
-    def _doFull(self):
-        command = ['checkout', self.repourl, '.']
+    def _doFull(self) -> InlineCallbacksType[int]:
+        command = ['checkout', cast(str, self.repourl), '.']
         if self.revision:
             command.extend(['-r', self.revision])
 
         if self.retry:
-            abandonOnFailure = (self.retry[1] <= 0)
+            abandonOnFailure = self.retry[1] <= 0
         else:
             abandonOnFailure = True
 
@@ -184,51 +212,59 @@ class Bzr(Source):
             if repeats > 0:
                 log.msg(f"Checkout failed, trying {repeats} more times after {delay} seconds")
                 self.retry = (delay, repeats - 1)
-                df = defer.Deferred()
+                df: defer.Deferred[Any] = defer.Deferred()
                 df.addCallback(lambda _: self._clobber())
                 df.addCallback(lambda _: self._doFull())
-                reactor.callLater(delay, df.callback, None)
+                cast("IReactorTime", reactor).callLater(delay, df.callback, None)
                 res = yield df
 
         return res
 
-    def _sourcedirIsUpdatable(self):
+    def _sourcedirIsUpdatable(self) -> defer.Deferred[bool]:
+        assert self.build is not None
         return self.pathExists(self.build.path_module.join(self.workdir, '.bzr'))
 
-    def computeSourceRevision(self, changes):
+    def computeSourceRevision(self, changes: list[TempChange] | None) -> int | None:
         if not changes:
             return None
-        lastChange = max([int(c.revision) for c in changes])
+        lastChange = max(int(c.revision) for c in changes)
         return lastChange
 
-    def _dovccmd(self, command, abandonOnFailure=True, collectStdout=False):
-        cmd = remotecommand.RemoteShellCommand(self.workdir, ['bzr'] + command,
-                                               env=self.env,
-                                               logEnviron=self.logEnviron,
-                                               timeout=self.timeout,
-                                               collectStdout=collectStdout)
+    def _dovccmd(
+        self, command: list[str], abandonOnFailure: bool = True, collectStdout: bool = False
+    ) -> defer.Deferred[Any]:
+        cmd = remotecommand.RemoteShellCommand(
+            self.workdir,
+            ['bzr', *command],
+            env=self.env,
+            logEnviron=self.logEnviron,
+            timeout=self.timeout,
+            collectStdout=collectStdout,
+        )
         cmd.useLog(self.stdio_log, False)
         d = self.runCommand(cmd)
 
         @d.addCallback
-        def evaluateCommand(_):
+        def evaluateCommand(_: Any) -> Any:
             if abandonOnFailure and cmd.didFail():
                 log.msg(f"Source step failed while running command {cmd}")
                 raise buildstep.BuildStepFailed()
             if collectStdout:
                 return cmd.stdout
             return cmd.rc
+
         return d
 
-    def checkBzr(self):
+    def checkBzr(self) -> defer.Deferred[bool]:
         d = self._dovccmd(['--version'])
 
         @d.addCallback
-        def check(res):
+        def check(res: Any) -> bool:
             return res == 0
+
         return d
 
-    def _getMethod(self):
+    def _getMethod(self) -> str | None:
         if self.method is not None and self.mode != 'incremental':
             return self.method
         elif self.mode == 'incremental':
@@ -238,9 +274,10 @@ class Bzr(Source):
         return None
 
     @defer.inlineCallbacks
-    def parseGotRevision(self):
-        stdout = yield self._dovccmd(["version-info", "--custom", "--template='{revno}"],
-                                     collectStdout=True)
+    def parseGotRevision(self) -> InlineCallbacksType[None]:
+        stdout = yield self._dovccmd(
+            ["version-info", "--custom", "--template='{revno}"], collectStdout=True
+        )
 
         revision = stdout.strip("'")
         try:

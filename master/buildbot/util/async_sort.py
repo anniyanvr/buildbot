@@ -19,21 +19,27 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+from typing import Any
+from typing import Callable
 
 from twisted.internet import defer
 
+if TYPE_CHECKING:
+    from buildbot.util.twisted import InlineCallbacksType
+
 
 @defer.inlineCallbacks
-def async_sort(l, key, max_parallel=10):
-    """perform an asynchronous sort with parallel run of the key algorithm
-    """
+def async_sort(l: list[Any], key: Callable, max_parallel: int = 10) -> InlineCallbacksType[None]:
+    """perform an asynchronous sort with parallel run of the key algorithm"""
 
     sem = defer.DeferredSemaphore(max_parallel)
     try:
-        keys = yield defer.gatherResults(
-            [sem.run(key, i) for i in l])
+        keys = yield defer.gatherResults([sem.run(key, i) for i in l], consumeErrors=True)
     except defer.FirstError as e:
-        raise e.subFailure.value
+        raise e.subFailure.value from e
 
     # Index the keys by the id of the original item in list
     keys = {id(l[i]): v for i, v in enumerate(keys)}

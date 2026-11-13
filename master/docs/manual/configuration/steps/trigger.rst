@@ -22,6 +22,8 @@ The counterpart to the :bb:Sched:`Triggerable` scheduler is the :bb:step:`Trigge
 
 The SourceStamps to use for the triggered build are controlled by the arguments ``updateSourceStamp``, ``alwaysUseLatest``, and ``sourceStamps``.
 
+The triggered build will inherit the priority of the triggering build.
+
 Hyperlinks are added to the build detail web pages for each triggered build.
 
 ``schedulerNames``
@@ -85,7 +87,6 @@ For this purpose, the Trigger step supports a method that you can customize in o
     :returns: list of dictionaries containing the keys 'sched_name', 'props_to_set' and 'unimportant' optionally via deferred.
 
     This method returns a list of dictionaries describing what scheduler to trigger, with which properties and if the scheduler is unimportant.
-    Old style list of tuples is still supported, in which case unimportant is considered ``False``.
     The properties should already be rendered (ie, concrete value, not objects wrapped by ``Interpolate`` or
     ``Property``). Since this function happens at build-time, the property values are available from the
     step and can be used to decide what schedulers or properties to use.

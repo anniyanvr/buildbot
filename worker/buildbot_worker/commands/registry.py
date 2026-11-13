@@ -12,15 +12,18 @@
 # Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 # Copyright Buildbot Team Members
+from __future__ import annotations
 
-from __future__ import absolute_import
-from __future__ import print_function
+from typing import TYPE_CHECKING
 
 import buildbot_worker.commands.fs
 import buildbot_worker.commands.shell
 import buildbot_worker.commands.transfer
 
-commandRegistry = {
+if TYPE_CHECKING:
+    from buildbot_worker.commands.base import Command
+
+commandRegistry: dict[str, type[Command]] = {
     # command name : fully qualified factory (callable)
     "shell": buildbot_worker.commands.shell.WorkerShellCommand,
     "uploadFile": buildbot_worker.commands.transfer.WorkerFileUploadCommand,
@@ -35,14 +38,13 @@ commandRegistry = {
     "stat": buildbot_worker.commands.fs.StatFile,
     "glob": buildbot_worker.commands.fs.GlobPath,
     "listdir": buildbot_worker.commands.fs.ListDir,
-    "rmfile": buildbot_worker.commands.fs.RemoveFile
+    "rmfile": buildbot_worker.commands.fs.RemoveFile,
 }
 
 
-def getFactory(command):
-    factory = commandRegistry[command]
-    return factory
+def getFactory(command: str) -> type[Command]:
+    return commandRegistry[command]
 
 
-def getAllCommandNames():
+def getAllCommandNames() -> list[str]:
     return list(commandRegistry)

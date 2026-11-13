@@ -13,7 +13,11 @@
 #
 # Copyright Buildbot Team Members
 
+from __future__ import annotations
+
 import stat
+from typing import TYPE_CHECKING
+from typing import Any
 
 from twisted.internet import defer
 
@@ -23,44 +27,50 @@ from buildbot.process.buildstep import BuildStep
 from buildbot.process.results import worst_status
 from buildbot.steps.worker import CompositeStepMixin
 
+if TYPE_CHECKING:
+    from buildbot.util.twisted import InlineCallbacksType
+
 
 class DownloadSecretsToWorker(BuildStep, CompositeStepMixin):
+    name = 'download_secrets_to_worker'
 
     renderables = ['secret_to_be_populated']
 
-    def __init__(self, populated_secret_list, **kwargs):
+    def __init__(self, populated_secret_list: Any, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.secret_to_be_populated = populated_secret_list
 
     @defer.inlineCallbacks
-    def runPopulateSecrets(self):
+    def runPopulateSecrets(self) -> InlineCallbacksType[int]:
         result = SUCCESS
         for path, secretvalue in self.secret_to_be_populated:
             if not isinstance(path, str):
                 raise ValueError(f"Secret path {path} is not a string")
             self.secret_to_be_interpolated = secretvalue
-            res = yield self.downloadFileContentToWorker(path, self.secret_to_be_interpolated,
-                                                         mode=stat.S_IRUSR | stat.S_IWUSR)
+            res = yield self.downloadFileContentToWorker(
+                path, self.secret_to_be_interpolated, mode=stat.S_IRUSR | stat.S_IWUSR
+            )
             result = worst_status(result, res)
         return result
 
     @defer.inlineCallbacks
-    def run(self):
+    def run(self) -> InlineCallbacksType[int]:
         res = yield self.runPopulateSecrets()
         return res
 
 
 class RemoveWorkerFileSecret(BuildStep, CompositeStepMixin):
+    name = 'remove_worker_file_secret'
 
     renderables = ['secret_to_be_populated']
 
-    def __init__(self, populated_secret_list, logEnviron=False, **kwargs):
+    def __init__(self, populated_secret_list: Any, logEnviron: bool = False, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.logEnviron = logEnviron
         self.secret_to_be_populated = populated_secret_list
 
     @defer.inlineCallbacks
-    def runRemoveWorkerFileSecret(self):
+    def runRemoveWorkerFileSecret(self) -> InlineCallbacksType[int]:
         all_results = []
         for path, _ in self.secret_to_be_populated:
             res = yield self.runRmFile(path, abandonOnFailure=False)
@@ -72,6 +82,6 @@ class RemoveWorkerFileSecret(BuildStep, CompositeStepMixin):
         return result
 
     @defer.inlineCallbacks
-    def run(self):
+    def run(self) -> InlineCallbacksType[int]:
         res = yield self.runRemoveWorkerFileSecret()
         return res
